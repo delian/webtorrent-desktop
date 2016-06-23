@@ -1213,11 +1213,7 @@ function openTorrentContextMenu (infoHash) {
 }
 
 function getTorrentPath (torrentSummary) {
-  var itemPath = path.join(torrentSummary.path, torrentSummary.files[0].path)
-  if (torrentSummary.files.length > 1) {
-    itemPath = path.dirname(itemPath)
-  }
-  return itemPath
+  return path.join(torrentSummary.path, torrentSummary.name)
 }
 
 function showItemInFolder (torrentSummary) {
