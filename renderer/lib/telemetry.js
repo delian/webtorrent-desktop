@@ -17,6 +17,15 @@ const config = require('../../config')
 var telemetry
 
 function init (state) {
+  // Running the app in development?
+  // Make a dummy telemetry object, don't modify config.json, don't post
+  if (!config.IS_PRODUCTION) {
+    telemetry = createSummary()
+    reset()
+    return
+  }
+
+  // Production: save telemetry summary in config.json, post to server
   telemetry = state.saved.telemetry
   if (!telemetry) {
     telemetry = state.saved.telemetry = createSummary()
@@ -30,7 +39,7 @@ function init (state) {
   telemetry.system = getSystemInfo()
   telemetry.approxNumTorrents = getApproxNumTorrents(state)
 
-  postToServer(telemetry)
+  postToServer()
 }
 
 function reset () {
