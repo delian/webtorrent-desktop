@@ -813,7 +813,13 @@ function torrentInfoHash (torrentKey, infoHash) {
     // Check if an existing (non-active) torrent has the same info hash
     if (state.saved.torrents.find((t) => t.infoHash === infoHash)) {
       ipcRenderer.send('wt-stop-torrenting', infoHash)
+/*
+      setTimeout(function() { // TODO: for some reason the rendering is broken
+        dispatch("play",infoHash)
+      },100)
+*/
       return onError(new Error('Cannot add duplicate torrent'))
+
     }
 
     torrentSummary = {
@@ -826,6 +832,11 @@ function torrentInfoHash (torrentKey, infoHash) {
 
   torrentSummary.infoHash = infoHash
   update()
+  /*
+   setTimeout(function() {
+   dispatch("play",infoHash)
+   },500)
+   */
 }
 
 function torrentWarning (torrentKey, message) {
