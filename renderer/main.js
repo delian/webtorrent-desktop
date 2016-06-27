@@ -14,8 +14,9 @@ var createElement = require('virtual-dom/create-element')
 var diff = require('virtual-dom/diff')
 var patch = require('virtual-dom/patch')
 
-var App = require('./views/app')
 var config = require('../config')
+var App = require('./views/app')
+var telemetry = require('./lib/telemetry')
 var errors = require('./lib/errors')
 var sound = require('./lib/sound')
 var State = require('./lib/state')
@@ -91,15 +92,22 @@ function onState (err, _state) {
   window.addEventListener('focus', onFocus)
   window.addEventListener('blur', onBlur)
 
-  sound.play('STARTUP')
+  // ...window visibility state.
+  document.addEventListener('webkitvisibilitychange', onVisibilityChange)
+
+  // Log uncaught JS errors
+  window.addEventListener('error',
+    (e) => telemetry.logUncaughtError('window', e.error), true)
 
   // Done! Ideally we want to get here < 500ms after the user clicks the app
+  sound.play('STARTUP')
   console.timeEnd('init')
 }
 
 function delayedInit () {
   lazyLoadCast()
   sound.preload()
+  telemetry.init(state)
 }
 
 // Lazily loads Chromecast and Airplay support
@@ -167,7 +175,6 @@ function dispatch (action, ...args) {
   }
   if (action === 'openTorrentAddress') {
     state.modal = { id: 'open-torrent-address-modal' }
-    update()
   }
   if (action === 'createTorrent') {
     createTorrent(args[0] /* options */)
@@ -190,11 +197,14 @@ function dispatch (action, ...args) {
   if (action === 'openTorrentContextMenu') {
     openTorrentContextMenu(args[0] /* infoHash */)
   }
-  if (action === 'openDevice') {
-    lazyLoadCast().open(args[0] /* deviceType */)
+  if (action === 'toggleCastMenu') {
+    lazyLoadCast().toggleMenu(args[0] /* deviceType */)
   }
-  if (action === 'closeDevice') {
-    lazyLoadCast().close()
+  if (action === 'selectCastDevice') {
+    lazyLoadCast().selectDevice(args[0] /* index */)
+  }
+  if (action === 'stopCasting') {
+    lazyLoadCast().stop()
   }
   if (action === 'setDimensions') {
     setDimensions(args[0] /* dimensions */)
@@ -252,6 +262,7 @@ function dispatch (action, ...args) {
   }
   if (action === 'mediaError') {
     if (state.location.url() === 'player') {
+      state.playing.result = 'error'
       state.playing.location = 'error'
       ipcRenderer.send('checkForVLC')
       ipcRenderer.once('checkForVLC', function (e, isInstalled) {
@@ -262,6 +273,9 @@ function dispatch (action, ...args) {
         }
       })
     }
+  }
+  if (action === 'mediaSuccess') {
+    state.playing.result = 'success'
   }
   if (action === 'mediaTimeUpdate') {
     state.playing.lastTimeUpdate = new Date().getTime()
@@ -319,6 +333,9 @@ function dispatch (action, ...args) {
   if (action === 'setTitle') {
     state.window.title = args[0] /* title */
   }
+  if (action === 'uncaughtError') {
+    telemetry.logUncaughtError(args[0] /* process */, args[1] /* error */)
+  }
 
   // Update the virtual-dom, unless it's just a mouse move event
   if (action !== 'mediaMouseMoved' || showOrHidePlayerControls()) {
@@ -355,11 +372,18 @@ function pause () {
 
 function playPause () {
   if (state.location.url() !== 'player') return
+
   if (state.playing.isPaused) {
     play()
   } else {
     pause()
   }
+
+  // force rerendering if window is hidden,
+  // in order to bypass `raf` and play/pause media immediately
+  if (!state.window.isVisible) render(state)
+
+  ipcRenderer.send('updateThumbnailBar', state.playing.isPaused)
 }
 
 function jumpToTime (time) {
@@ -470,6 +494,8 @@ function setupIpc () {
   ipcRenderer.on('wt-audio-metadata', (e, ...args) => torrentAudioMetadata(...args))
   ipcRenderer.on('wt-server-running', (e, ...args) => torrentServerRunning(...args))
 
+  ipcRenderer.on('wt-uncaught-error', (e, err) => telemetry.logUncaughtError('webtorrent', err))
+
   ipcRenderer.send('ipcReady')
 }
 
@@ -544,7 +570,7 @@ function onOpen (files) {
 function isTorrent (file) {
   var name = typeof file === 'string' ? file : file.name
   var isTorrentFile = path.extname(name).toLowerCase() === '.torrent'
-  var isMagnet = typeof file === 'string' && /^magnet:/.test(file)
+  var isMagnet = typeof file === 'string' && /^(stream-)?magnet:/.test(file)
   return isTorrentFile || isMagnet
 }
 
@@ -737,6 +763,7 @@ function findFilesRecursive (paths, cb) {
       findFilesRecursive([path], function (fileObjs) {
         ret = ret.concat(fileObjs)
         if (++numComplete === paths.length) {
+          ret.sort((a, b) => a.path < b.path ? -1 : a.path > b.path)
           cb(ret)
         }
       })
@@ -786,7 +813,13 @@ function torrentInfoHash (torrentKey, infoHash) {
     // Check if an existing (non-active) torrent has the same info hash
     if (state.saved.torrents.find((t) => t.infoHash === infoHash)) {
       ipcRenderer.send('wt-stop-torrenting', infoHash)
+/*
+      setTimeout(function() { // TODO: for some reason the rendering is broken
+        dispatch("play",infoHash)
+      },100)
+*/
       return onError(new Error('Cannot add duplicate torrent'))
+
     }
 
     torrentSummary = {
@@ -799,6 +832,11 @@ function torrentInfoHash (torrentKey, infoHash) {
 
   torrentSummary.infoHash = infoHash
   update()
+  /*
+   setTimeout(function() {
+   dispatch("play",infoHash)
+   },500)
+   */
 }
 
 function torrentWarning (torrentKey, message) {
@@ -973,10 +1011,13 @@ function openPlayer (infoHash, index, cb) {
 
   // update UI to show pending playback
   if (torrentSummary.progress !== 1) sound.play('PLAY')
+  // TODO: remove torrentSummary.playStatus
   torrentSummary.playStatus = 'requested'
   update()
 
   var timeout = setTimeout(function () {
+    telemetry.logPlayAttempt('timeout')
+    // TODO: remove torrentSummary.playStatus
     torrentSummary.playStatus = 'timeout' /* no seeders available? */
     sound.play('ERROR')
     cb(new Error('Playback timed out. Try again.'))
@@ -1042,25 +1083,41 @@ function openPlayerFromActiveTorrent (torrentSummary, index, timeout, cb) {
 }
 
 function closePlayer (cb) {
+  console.log('closePlayer')
+
+  // Quit any external players, like Chromecast/Airplay/etc or VLC
   if (isCasting()) {
-    Cast.close()
+    Cast.stop()
   }
   if (state.playing.location === 'vlc') {
     ipcRenderer.send('vlcQuit')
   }
-  state.window.title = config.APP_WINDOW_TITLE
-  // Lets save volume for later
+
+  // Save volume (this session only, not in state.saved)
   state.previousVolume = state.playing.volume
 
+  // Telemetry: track what happens after the user clicks play
+  var result = state.playing.result // 'success' or 'error'
+  if (result === 'success') telemetry.logPlayAttempt('success') // first frame displayed
+  else if (result === 'error') telemetry.logPlayAttempt('error') // codec missing, etc
+  else if (result === undefined) telemetry.logPlayAttempt('abandoned') // user exited before first frame
+  else console.error('Unknown state.playing.result', state.playing.result)
+
+  // Reset the window contents back to the home screen
+  state.window.title = config.APP_WINDOW_TITLE
   state.playing = State.getDefaultPlayState()
   state.server = null
 
+  // Reset the window size and location back to where it was
   if (state.window.isFullScreen) {
     dispatch('toggleFullScreen', false)
   }
   restoreBounds()
 
+  // Tell the WebTorrent process to kill the torrent-to-HTTP server
   ipcRenderer.send('wt-stop-server')
+
+  // Tell the OS we're no longer playing media, laptops allowed to sleep again
   ipcRenderer.send('unblockPowerSave')
   ipcRenderer.send('onPlayerClose')
 
@@ -1091,8 +1148,13 @@ function toggleTorrent (infoHash) {
 }
 
 // TODO: use torrentKey, not infoHash
-function deleteTorrent (infoHash) {
+function deleteTorrent (infoHash, deleteData) {
   ipcRenderer.send('wt-stop-torrenting', infoHash)
+
+  if (deleteData) {
+    var torrentSummary = getTorrentSummary(infoHash)
+    moveItemToTrash(torrentSummary)
+  }
 
   var index = state.saved.torrents.findIndex((x) => x.infoHash === infoHash)
   if (index > -1) state.saved.torrents.splice(index, 1)
@@ -1118,6 +1180,20 @@ function toggleTorrentFile (infoHash, index) {
 function openTorrentContextMenu (infoHash) {
   var torrentSummary = getTorrentSummary(infoHash)
   var menu = new electron.remote.Menu()
+
+  menu.append(new electron.remote.MenuItem({
+    label: 'Remove From List',
+    click: () => deleteTorrent(torrentSummary.infoHash, false)
+  }))
+
+  menu.append(new electron.remote.MenuItem({
+    label: 'Remove Data File',
+    click: () => deleteTorrent(torrentSummary.infoHash, true)
+  }))
+
+  menu.append(new electron.remote.MenuItem({
+    type: 'separator'
+  }))
 
   if (torrentSummary.files) {
     menu.append(new electron.remote.MenuItem({
@@ -1157,6 +1233,10 @@ function getTorrentPath (torrentSummary) {
 
 function showItemInFolder (torrentSummary) {
   ipcRenderer.send('showItemInFolder', getTorrentPath(torrentSummary))
+}
+
+function moveItemToTrash (torrentSummary) {
+  ipcRenderer.send('moveItemToTrash', getTorrentPath(torrentSummary))
 }
 
 function saveTorrentFileAs (torrentSummary) {
@@ -1295,4 +1375,8 @@ function onFocus (e) {
 function onBlur () {
   state.window.isFocused = false
   update()
+}
+
+function onVisibilityChange () {
+  state.window.isVisible = !document.webkitHidden
 }
