@@ -22,6 +22,8 @@ var windows = require('./windows')
 var shouldQuit = false
 var argv = sliceArgv(process.argv)
 
+console.log('Started',argv); // TODO: remove this
+
 if (process.platform === 'win32') {
   shouldQuit = squirrelWin32.handleEvent(argv[0])
   argv = argv.filter((arg) => arg.indexOf('--squirrel') === -1)
@@ -100,6 +102,7 @@ function delayedInit () {
 }
 
 function onOpen (e, torrentId) {
+  console.log('onOpen',torrentId); // TODO: remove this
   e.preventDefault()
 
   if (app.ipcReady) {
@@ -148,6 +151,7 @@ function processArgv (argv) {
     }
   })
   if (torrentIds.length > 0) {
+    console.log('Dispatch on open', torrentIds); // TODO: remove it
     windows.main.dispatch('onOpen', torrentIds)
   }
 }
