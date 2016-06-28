@@ -590,6 +590,7 @@ function getTorrentSummary (torrentKey) {
 // magnet URI, infohash, or torrent file: https://github.com/feross/webtorrent#clientaddtorrentid-opts-function-ontorrent-torrent-
 var instantIoRegex = /^(https:\/\/)?instant\.io\/#/
 function addTorrent (torrentId) {
+  console.log('addTorrent',torrentId);
   backToList()
   var torrentKey = state.nextTorrentKey++
   var path = state.saved.prefs.downloadPath
@@ -811,17 +812,18 @@ function torrentInfoHash (torrentKey, infoHash) {
     // Check if an existing (non-active) torrent has the same info hash
     if (state.saved.torrents.find((t) => t.infoHash === infoHash)) {
       ipcRenderer.send('wt-stop-torrenting', infoHash)
-/*
+
       setTimeout(function() { // TODO: for some reason the rendering is broken
         dispatch("play",infoHash)
-      },100)
-*/
+      },700)
+
       return onError(new Error('Cannot add duplicate torrent'))
 
     }
 
     torrentSummary = {
       torrentKey: torrentKey,
+      autoplay: true,
       status: 'new'
     }
     state.saved.torrents.unshift(torrentSummary)
@@ -830,11 +832,6 @@ function torrentInfoHash (torrentKey, infoHash) {
 
   torrentSummary.infoHash = infoHash
   update()
-  /*
-   setTimeout(function() {
-   dispatch("play",infoHash)
-   },500)
-   */
 }
 
 function torrentWarning (torrentKey, message) {
@@ -860,6 +857,7 @@ function torrentError (torrentKey, message) {
 function torrentMetadata (torrentKey, torrentInfo) {
   // Summarize torrent
   var torrentSummary = getTorrentSummary(torrentKey)
+  console.log('torrentSummary',torrentSummary);
   torrentSummary.status = 'downloading'
   torrentSummary.name = torrentSummary.displayName || torrentInfo.name
   torrentSummary.path = torrentInfo.path
@@ -881,6 +879,13 @@ function torrentMetadata (torrentKey, torrentInfo) {
 
   // Auto-generate a poster image, if it hasn't been generated already
   if (!torrentSummary.posterFileName) ipcRenderer.send('wt-generate-torrent-poster', torrentKey)
+
+  if (torrentSummary.autoplay) {
+    torrentSummary.autplay = false;
+    setTimeout(function() {
+      dispatch("play",torrentSummary.infoHash)
+    },500);
+  }
 }
 
 function torrentDone (torrentKey, torrentInfo) {

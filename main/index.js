@@ -29,6 +29,8 @@ if (process.platform === 'win32') {
   argv = argv.filter((arg) => arg.indexOf('--squirrel') === -1)
 }
 
+argv = argv.map((n)=>n.replace(/^zelka/,"magnet")); // TODO: Swap it
+
 if (!shouldQuit) {
   // Prevent multiple instances of app from running at same time. New instances signal
   // this instance and quit.
