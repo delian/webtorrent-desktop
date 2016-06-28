@@ -210,6 +210,12 @@ function buildDarwin (cb) {
       {
         CFBundleTypeRole: 'Editor',
         CFBundleURLIconFile: path.basename(config.APP_FILE_ICON) + '.icns',
+	CFBundleURLName: 'BitTorrent Zelka-Magnet URL',
+        CFBundleURLSchemes: [ 'zelka' ]
+      },
+      {
+        CFBundleTypeRole: 'Editor',
+        CFBundleURLIconFile: path.basename(config.APP_FILE_ICON) + '.icns',
         CFBundleURLName: 'BitTorrent Stream-Magnet URL',
         CFBundleURLSchemes: [ 'stream-magnet' ]
       }

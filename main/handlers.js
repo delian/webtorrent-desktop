@@ -38,6 +38,7 @@ function installDarwin () {
   // default handler at runtime.
   app.setAsDefaultProtocolClient('magnet')
   app.setAsDefaultProtocolClient('stream-magnet')
+  app.setAsDefaultProtocolClient('zelka') // TODO: new protocol handler
 
   // File handlers are defined in `Info.plist`.
 }
@@ -65,10 +66,16 @@ function installWin32 () {
     EXEC_COMMAND
   )
   registerProtocolHandlerWin32(
-    'stream-magnet',
-    'URL:BitTorrent Stream-Magnet URL',
-    iconPath,
-    EXEC_COMMAND
+      'stream-magnet',
+      'URL:BitTorrent Stream-Magnet URL',
+      iconPath,
+      EXEC_COMMAND
+  )
+  registerProtocolHandlerWin32(
+      'zelka',
+      'URL:BitTorrent Zelka-Magnet URL',
+      iconPath,
+      EXEC_COMMAND
   )
   registerFileHandlerWin32(
     '.torrent',
@@ -209,6 +216,7 @@ function uninstallWin32 () {
 
   unregisterProtocolHandlerWin32('magnet', EXEC_COMMAND)
   unregisterProtocolHandlerWin32('stream-magnet', EXEC_COMMAND)
+  unregisterProtocolHandlerWin32('zelka', EXEC_COMMAND)
   unregisterFileHandlerWin32('.torrent', 'io.webtorrent.torrent', EXEC_COMMAND)
 
   function unregisterProtocolHandlerWin32 (protocol, command) {
