@@ -43,7 +43,7 @@ function renderMedia (state) {
       mediaElement.play()
     }
     // When the user clicks or drags on the progress bar, jump to that position
-    if (state.playing.jumpToTime) {
+    if (state.playing.jumpToTime != null) {
       mediaElement.currentTime = state.playing.jumpToTime
       state.playing.jumpToTime = null
     }
@@ -413,7 +413,7 @@ function renderPlayerControls (state) {
   var buttonIcons = {
     'chromecast': {true: 'cast_connected', false: 'cast'},
     'airplay': {true: 'airplay', false: 'airplay'},
-    'dnla': {true: 'tv', false: 'tv'}
+    'dlna': {true: 'tv', false: 'tv'}
   }
   castTypes.forEach(function (castType) {
     // Do we show this button (eg. the Chromecast button) at all?
