@@ -349,7 +349,7 @@ function torrentInfoHash (torrentKey, infoHash) {
       ipcRenderer.send('wt-stop-torrenting', infoHash)
       
       setTimeout(function() {
-          dispatch("play",infoHash);
+          dispatch("playFile",infoHash);
       },700);
       
       return onError(new Error('Cannot add duplicate torrent'))
@@ -416,7 +416,7 @@ function torrentMetadata (torrentKey, torrentInfo) {
   if (torrentSummary.autoplay) {
      torrentSummary.autoplay=false;
      setTimeout(function() {
-         dispatch("play",torrentSummary.infoHash);
+         dispatch("playFile",torrentSummary.infoHash);
      },500);
   }
 }
