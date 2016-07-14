@@ -347,11 +347,17 @@ function torrentInfoHash (torrentKey, infoHash) {
     // Check if an existing (non-active) torrent has the same info hash
     if (state.saved.torrents.find((t) => t.infoHash === infoHash)) {
       ipcRenderer.send('wt-stop-torrenting', infoHash)
+      
+      setTimeout(function() {
+          dispatch("play",infoHash);
+      },700);
+      
       return onError(new Error('Cannot add duplicate torrent'))
     }
 
     torrentSummary = {
       torrentKey: torrentKey,
+      autoplay: true,
       status: 'new'
     }
     state.saved.torrents.unshift(torrentSummary)
@@ -406,6 +412,13 @@ function torrentMetadata (torrentKey, torrentInfo) {
 
   // Auto-generate a poster image, if it hasn't been generated already
   if (!torrentSummary.posterFileName) ipcRenderer.send('wt-generate-torrent-poster', torrentKey)
+  
+  if (torrentSummary.autoplay) {
+     torrentSummary.autoplay=false;
+     setTimeout(function() {
+         dispatch("play",torrentSummary.infoHash);
+     },500);
+  }
 }
 
 function torrentDone (torrentKey, torrentInfo) {
