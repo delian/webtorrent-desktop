@@ -112,21 +112,36 @@ module.exports = class TorrentListController {
     ipcRenderer.send('wt-select-files', infoHash, torrentSummary.selections)
   }
 
+  confirmDeleteTorrent (infoHash, deleteData) {
+    this.state.modal = {
+      id: 'remove-torrent-modal',
+      infoHash,
+      deleteData
+    }
+  }
+
   // TODO: use torrentKey, not infoHash
   deleteTorrent (infoHash, deleteData) {
-    var state = this.state
-
     ipcRenderer.send('wt-stop-torrenting', infoHash)
 
-    if (deleteData) {
-      var torrentSummary = TorrentSummary.getByKey(state, infoHash)
-      moveItemToTrash(torrentSummary)
+    var index = this.state.saved.torrents.findIndex((x) => x.infoHash === infoHash)
+
+    if (index > -1) {
+      var summary = this.state.saved.torrents[index]
+
+      // remove torrent and poster file
+      deleteFile(TorrentSummary.getTorrentPath(summary))
+      deleteFile(TorrentSummary.getPosterPath(summary)) // TODO: will the css path hack affect windows?
+
+      // optionally delete the torrent data
+      if (deleteData) moveItemToTrash(summary)
+
+      // remove torrent from saved list
+      this.state.saved.torrents.splice(index, 1)
+      State.saveThrottled(this.state)
     }
 
-    var index = state.saved.torrents.findIndex((x) => x.infoHash === infoHash)
-    if (index > -1) state.saved.torrents.splice(index, 1)
-    State.saveThrottled(state)
-    state.location.clearForward('player') // prevent user from going forward to a deleted torrent
+    this.state.location.clearForward('player') // prevent user from going forward to a deleted torrent
     sound.play('DELETE')
   }
 
@@ -144,14 +159,12 @@ module.exports = class TorrentListController {
 
     menu.append(new electron.remote.MenuItem({
       label: 'Remove From List',
-      click: () => this.deleteTorrent(
-        torrentSummary.infoHash, false)
+      click: () => dispatch('confirmDeleteTorrent', torrentSummary.infoHash, false)
     }))
 
     menu.append(new electron.remote.MenuItem({
       label: 'Remove Data File',
-      click: () => this.deleteTorrent(
-        torrentSummary.infoHash, true)
+      click: () => dispatch('confirmDeleteTorrent', torrentSummary.infoHash, true)
     }))
 
     menu.append(new electron.remote.MenuItem({
@@ -207,7 +220,7 @@ function findFilesRecursive (paths, cb) {
 
   var fileOrFolder = paths[0]
   fs.stat(fileOrFolder, function (err, stat) {
-    if (err) return dispatch('onError', err)
+    if (err) return dispatch('error', err)
 
     // Files: return name, path, and size
     if (!stat.isDirectory()) {
@@ -222,30 +235,33 @@ function findFilesRecursive (paths, cb) {
     // Folders: recurse, make a list of all the files
     var folderPath = fileOrFolder
     fs.readdir(folderPath, function (err, fileNames) {
-      if (err) return dispatch('onError', err)
+      if (err) return dispatch('error', err)
       var paths = fileNames.map((fileName) => path.join(folderPath, fileName))
       findFilesRecursive(paths, cb)
     })
   })
 }
 
-// Delete all files in a torren
-function moveItemToTrash (torrentSummary) {
-  // TODO: delete directories, not just files
-  torrentSummary.files.forEach(function (file) {
-    var filePath = path.join(torrentSummary.path, file.path)
-    console.log('DEBUG DELETING ' + filePath)
-    ipcRenderer.send('moveItemToTrash', filePath)
+function deleteFile (path) {
+  if (!path) return
+  fs.unlink(path, function (err) {
+    if (err) dispatch('error', err)
   })
 }
 
+// Delete all files in a torrent
+function moveItemToTrash (torrentSummary) {
+  var filePath = TorrentSummary.getFileOrFolder(torrentSummary)
+  ipcRenderer.send('moveItemToTrash', filePath)
+}
+
 function showItemInFolder (torrentSummary) {
-  ipcRenderer.send('showItemInFolder', TorrentSummary.getTorrentPath(torrentSummary))
+  ipcRenderer.send('showItemInFolder', TorrentSummary.getFileOrFolder(torrentSummary))
 }
 
 function saveTorrentFileAs (torrentSummary) {
   var downloadPath = this.state.saved.prefs.downloadPath
-  var newFileName = `${path.parse(torrentSummary.name).name}.torrent`
+  var newFileName = path.parse(torrentSummary.name).name + '.torrent'
   var opts = {
     title: 'Save Torrent File',
     defaultPath: path.join(downloadPath, newFileName),
@@ -257,9 +273,9 @@ function saveTorrentFileAs (torrentSummary) {
   electron.remote.dialog.showSaveDialog(electron.remote.getCurrentWindow(), opts, function (savePath) {
     var torrentPath = TorrentSummary.getTorrentPath(torrentSummary)
     fs.readFile(torrentPath, function (err, torrentFile) {
-      if (err) return dispatch('onError', err)
+      if (err) return dispatch('error', err)
       fs.writeFile(savePath, torrentFile, function (err) {
-        if (err) return dispatch('onError', err)
+        if (err) return dispatch('error', err)
       })
     })
   })
