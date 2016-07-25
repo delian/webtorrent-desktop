@@ -36,7 +36,9 @@ function installDarwin () {
 
   // On OS X, only protocols that are listed in `Info.plist` can be set as the
   // default handler at runtime.
+  /*
   app.setAsDefaultProtocolClient('magnet')
+  */
   app.setAsDefaultProtocolClient('stream-magnet')
   app.setAsDefaultProtocolClient('zelka') // TODO: new protocol handler
 
@@ -59,12 +61,14 @@ function installWin32 () {
   var iconPath = path.join(
     process.resourcesPath, 'app.asar.unpacked', 'static', 'WebTorrentFile.ico'
   )
+  /*
   registerProtocolHandlerWin32(
     'magnet',
     'URL:BitTorrent Magnet URL',
     iconPath,
     EXEC_COMMAND
   )
+  */
   registerProtocolHandlerWin32(
       'stream-magnet',
       'URL:BitTorrent Stream-Magnet URL',
@@ -213,11 +217,14 @@ function installWin32 () {
 
 function uninstallWin32 () {
   var Registry = require('winreg')
-
+  /*
   unregisterProtocolHandlerWin32('magnet', EXEC_COMMAND)
+  */
   unregisterProtocolHandlerWin32('stream-magnet', EXEC_COMMAND)
   unregisterProtocolHandlerWin32('zelka', EXEC_COMMAND)
+  /*
   unregisterFileHandlerWin32('.torrent', 'io.webtorrent.torrent', EXEC_COMMAND)
+  */
 
   function unregisterProtocolHandlerWin32 (protocol, command) {
     getCommand()
