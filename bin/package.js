@@ -201,12 +201,14 @@ function buildDarwin (cb) {
     ]
 
     infoPlist.CFBundleURLTypes = [
+    /*
       {
         CFBundleTypeRole: 'Editor',
         CFBundleURLIconFile: path.basename(config.APP_FILE_ICON) + '.icns',
         CFBundleURLName: 'BitTorrent Magnet URL',
         CFBundleURLSchemes: [ 'magnet' ]
       },
+      */
       {
         CFBundleTypeRole: 'Editor',
         CFBundleURLIconFile: path.basename(config.APP_FILE_ICON) + '.icns',
