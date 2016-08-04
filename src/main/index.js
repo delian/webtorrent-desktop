@@ -17,6 +17,7 @@ var menu = require('./menu')
 var squirrelWin32 = require('./squirrel-win32')
 var tray = require('./tray')
 var updater = require('./updater')
+var userTasks = require('./user-tasks')
 var windows = require('./windows')
 
 var shouldQuit = false
@@ -111,6 +112,7 @@ function delayedInit () {
   handlers.install()
   tray.init()
   updater.init()
+  userTasks.init()
 }
 
 function onOpen (e, torrentId) {
