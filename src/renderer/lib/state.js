@@ -24,7 +24,11 @@ function getDefaultState () {
      */
     client: null, /* the WebTorrent client */
     server: null, /* local WebTorrent-to-HTTP server */
-    prev: {}, /* used for state diffing in updateElectron() */
+    prev: { /* used for state diffing in updateElectron() */
+      title: null,
+      progress: -1,
+      badge: null
+    },
     location: new LocationHistory(),
     window: {
       bounds: null, /* {x, y, width, height } */
@@ -100,7 +104,10 @@ function setupSavedState (cb) {
 
   var saved = {
     prefs: {
-      downloadPath: config.DEFAULT_DOWNLOAD_PATH
+      downloadPath: config.DEFAULT_DOWNLOAD_PATH,
+      isFileHandler: false,
+      openExternalPlayer: false,
+      externalPlayerPath: null
     },
     torrents: config.DEFAULT_TORRENTS.map(createTorrentObject),
     version: config.APP_VERSION /* make sure we can upgrade gracefully later */
@@ -199,6 +206,9 @@ function save (state, cb) {
         }
         if (key === 'playStatus') {
           continue // Don't save whether a torrent is playing / pending
+        }
+        if (key === 'error') {
+          continue // Don't save error states
         }
         torrent[key] = x[key]
       }

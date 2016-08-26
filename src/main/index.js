@@ -10,7 +10,6 @@ var config = require('../config')
 var crashReporter = require('../crash-reporter')
 var dialog = require('./dialog')
 var dock = require('./dock')
-var handlers = require('./handlers')
 var ipc = require('./ipc')
 var log = require('./log')
 var menu = require('./menu')
@@ -37,8 +36,8 @@ if (process.platform === 'win32') {
 argv = argv.map((n)=>n.replace(/^zelka/,"magnet")); // TODO: Swap it
 
 if (!shouldQuit) {
-  // Prevent multiple instances of app from running at same time. New instances signal
-  // this instance and quit.
+  // Prevent multiple instances of app from running at same time. New instances
+  // signal this instance and quit.
   shouldQuit = app.makeSingleInstance(onAppOpen)
   if (shouldQuit) {
     app.quit()
@@ -81,8 +80,8 @@ function init () {
     // Report uncaught exceptions
     process.on('uncaughtException', (err) => {
       console.error(err)
-      var errJSON = {message: err.message, stack: err.stack}
-      windows.main.dispatch('uncaughtError', 'main', errJSON)
+      var error = {message: err.message, stack: err.stack}
+      windows.main.dispatch('uncaughtError', 'main', error)
     })
   })
 
@@ -113,7 +112,6 @@ function init () {
 function delayedInit () {
   announcement.init()
   dock.init()
-  handlers.install()
   tray.init()
   updater.init()
   userTasks.init()
@@ -164,7 +162,10 @@ function processArgv (argv) {
     } else if (arg.startsWith('-psn')) {
       // Ignore Mac launchd "process serial number" argument
       // Issue: https://github.com/feross/webtorrent-desktop/issues/214
-    } else {
+    } else if (arg !== '.') {
+      // Ignore '.' argument, which gets misinterpreted as a torrent id, when a
+      // development copy of WebTorrent is started while a production version is
+      // running.
       torrentIds.push(arg)
     }
   })

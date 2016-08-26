@@ -13,7 +13,7 @@ const State = require('../lib/state')
 const ipcRenderer = electron.ipcRenderer
 
 // Controls playback of torrents and files within torrents
-// both local (<video>,<audio>,VLC) and remote (cast)
+// both local (<video>,<audio>,external player) and remote (cast)
 module.exports = class PlaybackController {
   constructor (state, config, update) {
     this.state = state
@@ -38,7 +38,7 @@ module.exports = class PlaybackController {
     })
   }
 
-  // Show a file in the OS, eg in Finder on a Mac
+  // Open a file in OS default app.
   openItem (infoHash, index) {
     var torrentSummary = TorrentSummary.getByKey(this.state, infoHash)
     var filePath = path.join(
@@ -93,6 +93,10 @@ module.exports = class PlaybackController {
 
   // Skip (aka seek) to a specific point, in seconds
   skipTo (time) {
+    if (!Number.isFinite(time)) {
+      console.error('Tried to skip to a non-finite time ' + time)
+      return console.trace()
+    }
     if (isCasting(this.state)) Cast.seek(time)
     else this.state.playing.jumpToTime = time
   }
@@ -188,7 +192,7 @@ module.exports = class PlaybackController {
     }, 10000) /* give it a few seconds */
 
     if (torrentSummary.status === 'paused') {
-      dispatch('startTorrentingSummary', torrentSummary)
+      dispatch('startTorrentingSummary', torrentSummary.torrentKey)
       ipcRenderer.once('wt-ready-' + torrentSummary.infoHash,
         () => this.openPlayerFromActiveTorrent(torrentSummary, index, timeout, cb))
     } else {
@@ -241,12 +245,20 @@ module.exports = class PlaybackController {
         return this.update()
       }
 
+      state.window.title = torrentSummary.files[state.playing.fileIndex].name
+
+      // play in VLC if set as default player (Preferences / Playback / Play in VLC)
+      if (this.state.saved.prefs.openExternalPlayer) {
+        dispatch('openExternalPlayer')
+        this.update()
+        cb()
+        return
+      }
+
       // otherwise, play the video
-      dispatch('setTitle', torrentSummary.files[state.playing.fileIndex].name)
       this.update()
 
       ipcRenderer.send('onPlayerOpen')
-
       cb()
     })
   }
@@ -259,8 +271,8 @@ module.exports = class PlaybackController {
     if (isCasting(state)) {
       Cast.stop()
     }
-    if (state.playing.location === 'vlc') {
-      ipcRenderer.send('vlcQuit')
+    if (state.playing.location === 'external') {
+      ipcRenderer.send('quitExternalPlayer')
     }
 
     // Save volume (this session only, not in state.saved)

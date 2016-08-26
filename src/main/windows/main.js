@@ -23,7 +23,7 @@ var log = require('../log')
 var menu = require('../menu')
 var tray = require('../tray')
 
-var HEADER_HEIGHT = 37
+var HEADER_HEIGHT = 38
 var TORRENT_HEIGHT = 100
 
 function init () {
@@ -31,7 +31,7 @@ function init () {
     return main.win.show()
   }
   var win = main.win = new electron.BrowserWindow({
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#282828',
     darkTheme: true, // Forces dark theme (GTK+3)
     icon: getIconPath(), // Window icon (Windows, Linux)
     minWidth: config.WINDOW_MIN_WIDTH,
@@ -141,7 +141,13 @@ function setBounds (bounds, maximize) {
       bounds.y = Math.round(scr.bounds.y + scr.bounds.height / 2 - bounds.height / 2)
       log('setBounds: centered to ' + JSON.stringify(bounds))
     }
-    main.win.setBounds(bounds, true)
+    // Resize the window's content area (so window border doesn't need to be taken
+    // into account)
+    if (bounds.contentBounds) {
+      main.win.setContentBounds(bounds, true)
+    } else {
+      main.win.setBounds(bounds, true)
+    }
   } else {
     log('setBounds: not setting bounds because of window maximization')
   }
@@ -204,13 +210,13 @@ function toggleFullScreen (flag) {
 }
 
 function onWindowBlur () {
-  menu.onWindowBlur()
-  tray.onWindowBlur()
+  menu.setWindowFocus(false)
+  tray.setWindowFocus(false)
 }
 
 function onWindowFocus () {
-  menu.onWindowFocus()
-  tray.onWindowFocus()
+  menu.setWindowFocus(true)
+  tray.setWindowFocus(true)
 }
 
 function getIconPath () {

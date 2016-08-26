@@ -105,7 +105,7 @@ var all = {
   prune: true,
 
   // The Electron version with which the app is built (without the leading 'v')
-  version: require('electron-prebuilt/package.json').version
+  version: require('electron/package.json').version
 }
 
 var darwin = {
@@ -492,6 +492,11 @@ function buildLinux (cb) {
       dest: destPath,
       expand: true,
       cwd: filesPath
+    }, {
+      src: ['./**'],
+      dest: path.join('/usr', 'share'),
+      expand: true,
+      cwd: path.join(config.STATIC_PATH, 'linux', 'share')
     }], function (err) {
       if (err) return cb(err)
       console.log(`Linux: Created ${destArch} deb.`)

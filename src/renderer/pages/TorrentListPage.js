@@ -8,16 +8,32 @@ const {dispatcher} = require('../lib/dispatcher')
 module.exports = class TorrentList extends React.Component {
   render () {
     var state = this.props.state
-    var torrentRows = state.saved.torrents.map(
+
+    var contents = []
+    if (state.downloadPathStatus === 'missing') {
+      contents.push(
+        <div key='torrent-missing-path'>
+          <p>Download path missing: {state.saved.prefs.downloadPath}</p>
+          <p>Check that all drives are connected?</p>
+          <p>Alternatively, choose a new download path
+            in <a href='#' onClick={dispatcher('preferences')}>Preferences</a>
+          </p>
+        </div>
+      )
+    }
+    var torrentElems = state.saved.torrents.map(
       (torrentSummary) => this.renderTorrent(torrentSummary)
+    )
+    contents.push(...torrentElems)
+    contents.push(
+      <div key='torrent-placeholder' className='torrent-placeholder'>
+        <span className='ellipsis'>Drop a torrent file here or paste a magnet link</span>
+      </div>
     )
 
     return (
       <div key='torrent-list' className='torrent-list'>
-        {torrentRows}
-        <div key='torrent-placeholder' className='torrent-placeholder'>
-          <span className='ellipsis'>Drop a torrent file here or paste a magnet link</span>
-        </div>
+        {contents}
       </div>
     )
   }
@@ -44,6 +60,7 @@ module.exports = class TorrentList extends React.Component {
     if (torrentSummary.playStatus) classes.push(torrentSummary.playStatus)
     if (isSelected) classes.push('selected')
     if (!infoHash) classes.push('disabled')
+    if (!torrentSummary.torrentKey) throw new Error('Missing torrentKey')
     return (
       <div
         key={torrentSummary.torrentKey}
@@ -67,8 +84,14 @@ module.exports = class TorrentList extends React.Component {
 
     // If it's downloading/seeding then show progress info
     var prog = torrentSummary.progress
-    if (torrentSummary.status !== 'paused' && prog) {
-      elements.push((
+    if (torrentSummary.error) {
+      elements.push(
+        <div key='progress-info' className='ellipsis'>
+          {getErrorMessage(torrentSummary)}
+        </div>
+      )
+    } else if (torrentSummary.status !== 'paused' && prog) {
+      elements.push(
         <div key='progress-info' className='ellipsis'>
           {renderPercentProgress()}
           {renderTotalProgress()}
@@ -77,7 +100,7 @@ module.exports = class TorrentList extends React.Component {
           {renderUploadSpeed()}
           {renderEta()}
         </div>
-      ))
+      )
     }
 
     return (<div key='metadata' className='metadata'>{elements}</div>)
@@ -161,43 +184,50 @@ module.exports = class TorrentList extends React.Component {
       downloadTooltip = 'Click to start torrenting.'
     }
 
-    // Do we have a saved position? Show it using a radial progress bar on top
-    // of the play button, unless already showing a spinner there:
-    var positionElem
-    var willShowSpinner = torrentSummary.playStatus === 'requested'
-    var defaultFile = torrentSummary.files &&
-      torrentSummary.files[torrentSummary.defaultPlayFileIndex]
-    if (defaultFile && defaultFile.currentTime && !willShowSpinner) {
-      var fraction = defaultFile.currentTime / defaultFile.duration
-      positionElem = this.renderRadialProgressBar(fraction, 'radial-progress-large')
-      playClass = 'resume-position'
-    }
-
-    // Only show the play button for torrents that contain playable media
-    var playButton
-    if (TorrentPlayer.isPlayableTorrentSummary(torrentSummary)) {
-      playButton = (
+    // Only show the play/dowload buttons for torrents that contain playable media
+    var playButton, downloadButton, positionElem
+    if (!torrentSummary.error) {
+      downloadButton = (
         <i
-          key='play-button'
-          title={playTooltip}
-          className={'button-round icon play ' + playClass}
-          onClick={dispatcher('playFile', infoHash)}>
-          {playIcon}
+          key='download-button'
+          className={'button-round icon download ' + torrentSummary.status}
+          title={downloadTooltip}
+          onClick={dispatcher('toggleTorrent', infoHash)}
+        >
+          {downloadIcon}
         </i>
       )
+
+      // Do we have a saved position? Show it using a radial progress bar on top
+      // of the play button, unless already showing a spinner there:
+      var willShowSpinner = torrentSummary.playStatus === 'requested'
+      var defaultFile = torrentSummary.files &&
+        torrentSummary.files[torrentSummary.defaultPlayFileIndex]
+      if (defaultFile && defaultFile.currentTime && !willShowSpinner) {
+        var fraction = defaultFile.currentTime / defaultFile.duration
+        positionElem = this.renderRadialProgressBar(fraction, 'radial-progress-large')
+        playClass = 'resume-position'
+      }
+
+      if (TorrentPlayer.isPlayableTorrentSummary(torrentSummary)) {
+        playButton = (
+          <i
+            key='play-button'
+            title={playTooltip}
+            className={'button-round icon play ' + playClass}
+            onClick={dispatcher('playFile', infoHash)}
+          >
+            {playIcon}
+          </i>
+        )
+      }
     }
 
     return (
       <div key='buttons' className='buttons'>
         {positionElem}
         {playButton}
-        <i
-          key='download-button'
-          className={'button-round icon download ' + torrentSummary.status}
-          title={downloadTooltip}
-          onClick={dispatcher('toggleTorrent', infoHash)}>
-          {downloadIcon}
-        </i>
+        {downloadButton}
         <i
           key='delete-button'
           className='icon delete'
@@ -212,12 +242,26 @@ module.exports = class TorrentList extends React.Component {
   // Show files, per-file download status and play buttons, and so on
   renderTorrentDetails (torrentSummary) {
     var filesElement
-    if (!torrentSummary.files) {
-      // We don't know what files this torrent contains
-      var message = torrentSummary.status === 'paused'
-        ? 'Failed to load torrent info. Click the download button to try again...'
-        : 'Downloading torrent info...'
-      filesElement = (<div key='files' className='files warning'>{message}</div>)
+    if (torrentSummary.error || !torrentSummary.files) {
+      var message = ''
+      if (torrentSummary.error === 'path-missing') {
+        // Special case error: this torrent's download dir or file is missing
+        message = 'Missing path: ' + TorrentSummary.getFileOrFolder(torrentSummary)
+      } else if (torrentSummary.error) {
+        // General error for this torrent: just show the message
+        message = torrentSummary.error.message || torrentSummary.error
+      } else if (torrentSummary.status === 'paused') {
+        // No file info, no infohash, and we're not trying to download from the DHT
+        message = 'Failed to load torrent info. Click the download button to try again...'
+      } else {
+        // No file info, no infohash, trying to load from the DHT
+        message = 'Downloading torrent info...'
+      }
+      filesElement = (
+        <div key='files' className='files warning'>
+          {message}
+        </div>
+      )
     } else {
       // We do know the files. List them and show download stats for each one
       var fileRows = torrentSummary.files
@@ -279,8 +323,11 @@ module.exports = class TorrentList extends React.Component {
       handleClick = dispatcher('playFile', infoHash, index)
     } else {
       icon = 'description' /* file icon, opens in OS default app */
-      handleClick = dispatcher('openItem', infoHash, index)
+      handleClick = isDone
+        ? dispatcher('openItem', infoHash, index)
+        : (e) => e.stopPropagation() // noop if file is not ready
     }
+    // TODO: add a css 'disabled' class to indicate that a file cannot be opened/streamed
     var rowClass = ''
     if (!isSelected) rowClass = 'disabled' // File deselected, not being torrented
     if (!isDone && !isPlayable) rowClass = 'disabled' // Can't open yet, can't stream
@@ -316,15 +363,28 @@ module.exports = class TorrentList extends React.Component {
       <div key='radial-progress' className={'radial-progress ' + cssClass}>
         <div key='circle' className='circle'>
           <div key='mask-full' className='mask full' style={transformFill}>
-            <div key='fill' className='fill' style={transformFill}></div>
+            <div key='fill' className='fill' style={transformFill} />
           </div>
           <div key='mask-half' className='mask half'>
-            <div key='fill' className='fill' style={transformFill}></div>
-            <div key='fill-fix' className='fill fix' style={transformFix}></div>
+            <div key='fill' className='fill' style={transformFill} />
+            <div key='fill-fix' className='fill fix' style={transformFix} />
           </div>
         </div>
-        <div key='inset' className='inset'></div>
+        <div key='inset' className='inset' />
       </div>
     )
   }
+}
+
+function getErrorMessage (torrentSummary) {
+  var err = torrentSummary.error
+  if (err === 'path-missing') {
+    return (
+      <span>
+        Path missing.<br />
+        Fix and restart the app, or delete the torrent.
+      </span>
+    )
+  }
+  return 'Error'
 }

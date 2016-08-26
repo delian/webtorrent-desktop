@@ -2,6 +2,7 @@ const React = require('react')
 const Bitfield = require('bitfield')
 const prettyBytes = require('prettier-bytes')
 const zeroFill = require('zero-fill')
+const path = require('path')
 
 const TorrentSummary = require('../lib/torrent-summary')
 const {dispatch, dispatcher} = require('../lib/dispatcher')
@@ -13,13 +14,14 @@ module.exports = class Player extends React.Component {
     // If the video is on Chromecast or Airplay, show a title screen instead
     var state = this.props.state
     var showVideo = state.playing.location === 'local'
+    var showControls = state.playing.location !== 'external'
     return (
       <div
         className='player'
         onWheel={handleVolumeWheel}
         onMouseMove={dispatcher('mediaMouseMoved')}>
         {showVideo ? renderMedia(state) : renderCastScreen(state)}
-        {renderPlayerControls(state)}
+        {showControls ? renderPlayerControls(state) : null}
       </div>
     )
   }
@@ -232,7 +234,7 @@ function renderAudioMetadata (state) {
   }
 
   // Align the title with the other info, if available. Otherwise, center title
-  var emptyLabel = (<label></label>)
+  var emptyLabel = (<label />)
   elems.unshift((
     <div key='title' className='audio-title'>
       {elems.length ? emptyLabel : undefined}{title}
@@ -281,9 +283,12 @@ function renderCastScreen (state) {
     castIcon = 'tv'
     castType = 'DLNA'
     isCast = true
-  } else if (state.playing.location === 'vlc') {
+  } else if (state.playing.location === 'external') {
+    // TODO: get the player name in a more reliable way
+    var playerPath = state.saved.prefs.externalPlayerPath
+    var playerName = playerPath ? path.basename(playerPath).split('.')[0] : 'VLC'
     castIcon = 'tv'
-    castType = 'VLC'
+    castType = playerName
     isCast = false
   } else if (state.playing.location === 'error') {
     castIcon = 'error_outline'
@@ -380,16 +385,16 @@ function renderPlayerControls (state) {
       <div
         key='cursor'
         className='playback-cursor'
-        style={playbackCursorStyle}>
-      </div>
+        style={playbackCursorStyle}
+      />
       <div
         key='scrub-bar'
         className='scrub-bar'
         draggable='true'
         onDragStart={handleDragStart}
         onClick={handleScrub}
-        onDrag={handleScrub}>
-      </div>
+        onDrag={handleScrub}
+      />
     </div>,
 
     <i
@@ -593,7 +598,7 @@ function renderLoadingBar (state) {
       width: (100 * part.count / fileProg.numPieces) + '%'
     }
 
-    return (<div key={i} className='loading-bar-part' style={style}></div>)
+    return (<div key={i} className='loading-bar-part' style={style} />)
   })
   return (<div key='loading-bar' className='loading-bar'>{loadingBarElems}</div>)
 }
@@ -603,7 +608,7 @@ function cssBackgroundImagePoster (state) {
   var torrentSummary = state.getPlayingTorrentSummary()
   var posterPath = TorrentSummary.getPosterPath(torrentSummary)
   if (!posterPath) return ''
-  return cssBackgroundImageDarkGradient() + `, url(${posterPath})`
+  return cssBackgroundImageDarkGradient() + `, url('${posterPath}')`
 }
 
 function cssBackgroundImageDarkGradient () {

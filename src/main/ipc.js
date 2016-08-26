@@ -8,20 +8,18 @@ var app = electron.app
 
 var dialog = require('./dialog')
 var dock = require('./dock')
+var handlers = require('./handlers')
 var log = require('./log')
 var menu = require('./menu')
 var powerSaveBlocker = require('./power-save-blocker')
 var shell = require('./shell')
 var shortcuts = require('./shortcuts')
-var vlc = require('./vlc')
+var externalPlayer = require('./external-player')
 var windows = require('./windows')
 var thumbar = require('./thumbar')
 
 // Messages from the main process, to be sent once the WebTorrent process starts
 var messageQueueMainToWebTorrent = []
-
-// holds a ChildProcess while we're playing a video in VLC, null otherwise
-var vlcProcess
 
 function init () {
   var ipc = electron.ipcMain
@@ -60,14 +58,14 @@ function init () {
    */
 
   ipc.on('onPlayerOpen', function () {
-    menu.onPlayerOpen()
+    menu.setPlayerOpen(true)
     powerSaveBlocker.enable()
     shortcuts.enable()
     thumbar.enable()
   })
 
   ipc.on('onPlayerClose', function () {
-    menu.onPlayerClose()
+    menu.setPlayerOpen(false)
     powerSaveBlocker.disable()
     shortcuts.disable()
     thumbar.disable()
@@ -92,6 +90,14 @@ function init () {
   ipc.on('moveItemToTrash', (e, ...args) => shell.moveItemToTrash(...args))
 
   /**
+   * File handlers
+   */
+  ipc.on('setDefaultFileHandler', (e, flag) => {
+    if (flag) handlers.install()
+    else handlers.uninstall()
+  })
+
+  /**
    * Windows: Main
    */
 
@@ -103,54 +109,20 @@ function init () {
   ipc.on('setTitle', (e, ...args) => main.setTitle(...args))
   ipc.on('show', () => main.show())
   ipc.on('toggleFullScreen', (e, ...args) => main.toggleFullScreen(...args))
+  ipc.on('setAllowNav', (e, ...args) => menu.setAllowNav(...args))
 
   /**
-   * VLC
-   * TODO: Move most of this code to vlc.js
+   * External Media Player
    */
 
-  ipc.on('checkForVLC', function (e) {
-    vlc.checkForVLC(function (isInstalled) {
-      windows.main.send('checkForVLC', isInstalled)
+  ipc.on('checkForExternalPlayer', function (e, path) {
+    externalPlayer.checkInstall(path, function (isInstalled) {
+      windows.main.send('checkForExternalPlayer', isInstalled)
     })
   })
 
-  ipc.on('vlcPlay', function (e, url, title) {
-    var args = ['--play-and-exit', '--video-on-top', '--no-video-title-show', '--quiet', `--meta-title=${title}`, url]
-    log('Running vlc ' + args.join(' '))
-
-    vlc.spawn(args, function (err, proc) {
-      if (err) return windows.main.dispatch('vlcNotFound')
-      vlcProcess = proc
-
-      // If it works, close the modal after a second
-      var closeModalTimeout = setTimeout(() =>
-        windows.main.dispatch('exitModal'), 1000)
-
-      vlcProcess.on('close', function (code) {
-        clearTimeout(closeModalTimeout)
-        if (!vlcProcess) return // Killed
-        log('VLC exited with code ', code)
-        if (code === 0) {
-          windows.main.dispatch('backToList')
-        } else {
-          windows.main.dispatch('vlcNotFound')
-        }
-        vlcProcess = null
-      })
-
-      vlcProcess.on('error', function (e) {
-        log('VLC error', e)
-      })
-    })
-  })
-
-  ipc.on('vlcQuit', function () {
-    if (!vlcProcess) return
-    log('Killing VLC, pid ' + vlcProcess.pid)
-    vlcProcess.kill('SIGKILL') // kill -9
-    vlcProcess = null
-  })
+  ipc.on('openExternalPlayer', (e, ...args) => externalPlayer.spawn(...args))
+  ipc.on('quitExternalPlayer', () => externalPlayer.kill())
 
   // Capture all events
   var oldEmit = ipc.emit

@@ -24,8 +24,8 @@ module.exports = class TorrentListController {
       // Use path string instead of W3C File object
       torrentId = torrentId.path
     }
+
     // Allow a instant.io link to be pasted
-    // TODO: remove this once support is added to webtorrent core
     if (typeof torrentId === 'string' && instantIoRegex.test(torrentId)) {
       torrentId = torrentId.slice(torrentId.indexOf('#') + 1)
     }
@@ -40,12 +40,21 @@ module.exports = class TorrentListController {
 
   // Shows the Create Torrent page with options to seed a given file or folder
   showCreateTorrent (files) {
+    // You can only create torrents from the home screen.
+    if (this.state.location.url() !== 'home') {
+      return dispatch('error', 'Please go back to the torrent list before creating a new torrent.')
+    }
+
     // Files will either be an array of file objects, which we can send directly
     // to the create-torrent screen
     if (files.length === 0 || typeof files[0] !== 'string') {
       this.state.location.go({
         url: 'create-torrent',
-        files: files
+        files: files,
+        setup: (cb) => {
+          this.state.window.title = 'Create New Torrent'
+          cb(null)
+        }
       })
       return
     }
@@ -55,39 +64,43 @@ module.exports = class TorrentListController {
     findFilesRecursive(files, (allFiles) => this.showCreateTorrent(allFiles))
   }
 
-  // Switches between the advanced and simple Create Torrent UI
-  toggleCreateTorrentAdvanced () {
-    var info = this.state.location.current()
-    if (info.url !== 'create-torrent') return
-    info.showAdvanced = !info.showAdvanced
-  }
-
   // Creates a new torrent and start seeeding
   createTorrent (options) {
     var state = this.state
     var torrentKey = state.nextTorrentKey++
     ipcRenderer.send('wt-create-torrent', torrentKey, options)
-    state.location.backToFirst(function () {
-      state.location.clearForward('create-torrent')
-    })
+    state.location.cancel()
   }
 
   // Starts downloading and/or seeding a given torrentSummary.
-  startTorrentingSummary (torrentSummary) {
-    var s = torrentSummary
+  startTorrentingSummary (torrentKey) {
+    var s = TorrentSummary.getByKey(this.state, torrentKey)
+    if (!s) throw new Error('Missing key: ' + torrentKey)
 
-    // Backward compatibility for config files save before we had torrentKey
-    if (!s.torrentKey) s.torrentKey = this.state.nextTorrentKey++
+    // New torrent: give it a path
+    if (!s.path) {
+      // Use Downloads folder by default
+      s.path = this.state.saved.prefs.downloadPath
+      return start()
+    }
 
-    // Use Downloads folder by default
-    if (!s.path) s.path = this.state.saved.prefs.downloadPath
+    // Existing torrent: check that the path is still there
+    fs.stat(TorrentSummary.getFileOrFolder(s), function (err) {
+      if (err) {
+        s.error = 'path-missing'
+        return
+      }
+      start()
+    })
 
-    ipcRenderer.send('wt-start-torrenting',
-                      s.torrentKey,
-                      TorrentSummary.getTorrentID(s),
-                      s.path,
-                      s.fileModtimes,
-                      s.selections)
+    function start () {
+      ipcRenderer.send('wt-start-torrenting',
+        s.torrentKey,
+        TorrentSummary.getTorrentID(s),
+        s.path,
+        s.fileModtimes,
+        s.selections)
+    }
   }
 
   // TODO: use torrentKey, not infoHash
@@ -95,7 +108,7 @@ module.exports = class TorrentListController {
     var torrentSummary = TorrentSummary.getByKey(this.state, infoHash)
     if (torrentSummary.status === 'paused') {
       torrentSummary.status = 'new'
-      this.startTorrentingSummary(torrentSummary)
+      this.startTorrentingSummary(torrentSummary.torrentKey)
       sound.play('ENABLE')
     } else {
       torrentSummary.status = 'paused'
@@ -252,7 +265,7 @@ function deleteFile (path) {
 // Delete all files in a torrent
 function moveItemToTrash (torrentSummary) {
   var filePath = TorrentSummary.getFileOrFolder(torrentSummary)
-  ipcRenderer.send('moveItemToTrash', filePath)
+  if (filePath) ipcRenderer.send('moveItemToTrash', filePath)
 }
 
 function showItemInFolder (torrentSummary) {
@@ -271,6 +284,7 @@ function saveTorrentFileAs (torrentSummary) {
     ]
   }
   electron.remote.dialog.showSaveDialog(electron.remote.getCurrentWindow(), opts, function (savePath) {
+    if (!savePath) return // They clicked Cancel
     var torrentPath = TorrentSummary.getTorrentPath(torrentSummary)
     fs.readFile(torrentPath, function (err, torrentFile) {
       if (err) return dispatch('error', err)

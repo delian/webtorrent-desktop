@@ -4,8 +4,10 @@ module.exports = {
   run
 }
 
-var semver = require('semver')
-var config = require('../../config')
+const semver = require('semver')
+const config = require('../../config')
+const TorrentSummary = require('./torrent-summary')
+const fs = require('fs')
 
 // Change `state.saved` (which will be saved back to config.json on exit) as
 // needed, for example to deal with config.json format changes across versions
@@ -25,13 +27,19 @@ function run (state) {
     migrate_0_7_2(state.saved)
   }
 
+  if (semver.lt(version, '0.11.0')) {
+    migrate_0_11_0(state.saved)
+  }
+
+  if (semver.lt(version, '0.12.0')) {
+    migrate_0_12_0(state.saved)
+  }
+
   // Config is now on the new version
   state.saved.version = config.APP_VERSION
 }
 
 function migrate_0_7_0 (saved) {
-  console.log('migrate to 0.7.0')
-
   var fs = require('fs-extra')
   var path = require('path')
 
@@ -46,7 +54,6 @@ function migrate_0_7_0 (saved) {
     // * Finally, now we're getting rid of torrentPath altogether
     var src, dst
     if (ts.torrentPath) {
-      console.log('replacing torrentPath %s', ts.torrentPath)
       if (path.isAbsolute(ts.torrentPath) || ts.torrentPath.startsWith('..')) {
         src = ts.torrentPath
       } else {
@@ -63,7 +70,6 @@ function migrate_0_7_0 (saved) {
 
     // Replace posterURL with posterFileName
     if (ts.posterURL) {
-      console.log('replacing posterURL %s', ts.posterURL)
       var extension = path.extname(ts.posterURL)
       src = path.isAbsolute(ts.posterURL)
         ? ts.posterURL
@@ -87,9 +93,45 @@ function migrate_0_7_0 (saved) {
 }
 
 function migrate_0_7_2 (saved) {
-  if (!saved.prefs) {
+  if (saved.prefs == null) {
     saved.prefs = {
       downloadPath: config.DEFAULT_DOWNLOAD_PATH
     }
   }
+}
+
+function migrate_0_11_0 (saved) {
+  if (saved.prefs.isFileHandler == null) {
+    // The app used to make itself the default torrent file handler automatically
+    saved.prefs.isFileHandler = true
+  }
+}
+
+function migrate_0_12_0 (saved) {
+  if (saved.prefs.openExternalPlayer == null && saved.prefs.playInVlc != null) {
+    saved.prefs.openExternalPlayer = saved.prefs.playInVlc
+  }
+  delete saved.prefs.playInVlc
+
+  // Undo a terrible bug where clicking Play on a default torrent on a fresh
+  // install results in a "path missing" error
+  // See https://github.com/feross/webtorrent-desktop/pull/806
+  var defaultTorrentFiles = [
+    '6a9759bffd5c0af65319979fb7832189f4f3c35d.torrent',
+    '88594aaacbde40ef3e2510c47374ec0aa396c08e.torrent',
+    '6a02592d2bbc069628cd5ed8a54f88ee06ac0ba5.torrent',
+    '02767050e0be2fd4db9a2ad6c12416ac806ed6ed.torrent',
+    '3ba219a8634bf7bae3d848192b2da75ae995589d.torrent'
+  ]
+  saved.torrents.forEach(function (torrentSummary) {
+    if (!defaultTorrentFiles.includes(torrentSummary.torrentFileName)) return
+    var fileOrFolder = TorrentSummary.getFileOrFolder(torrentSummary)
+    if (!fileOrFolder) return
+    try {
+      fs.statSync(fileOrFolder)
+    } catch (e) {
+      // Default torrent with "missing path" error. Clear path.
+      delete torrentSummary.path
+    }
+  })
 }
