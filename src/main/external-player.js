@@ -4,6 +4,12 @@ module.exports = {
   checkInstall
 }
 
+// OS
+const os = require('os');
+const fs = require('fs');
+const path = require('path');
+// OS
+
 const cp = require('child_process')
 const vlcCommand = require('vlc-command')
 
@@ -22,6 +28,14 @@ function checkInstall (path, cb) {
 
 function spawn (path, url, title) {
   if (path != null) return spawnExternal(path, [url])
+
+  if (os.platform()=='win32') {
+    var vlcPathExe = path.join(process.resourcesPath, 'app.asar.unpacked', 'static', 'vlc-2.2.4','vlc.exe');
+    console.log('FS',fs.statSync(vlcPathExe));
+    if (fs.statSync(vlcPathExe)) {
+      return spawnExternal(vlcPathExe,[url]);
+    }
+  }
 
   // Try to find and use VLC if external player is not specified
   vlcCommand(function (err, vlcPath) {
