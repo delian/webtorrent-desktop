@@ -2,27 +2,27 @@ module.exports = {
   init
 }
 
-var electron = require('electron')
+const electron = require('electron')
 
-var app = electron.app
+const app = electron.app
 
-var dialog = require('./dialog')
-var dock = require('./dock')
-var handlers = require('./handlers')
-var log = require('./log')
-var menu = require('./menu')
-var powerSaveBlocker = require('./power-save-blocker')
-var shell = require('./shell')
-var shortcuts = require('./shortcuts')
-var externalPlayer = require('./external-player')
-var windows = require('./windows')
-var thumbar = require('./thumbar')
+const dialog = require('./dialog')
+const dock = require('./dock')
+const handlers = require('./handlers')
+const log = require('./log')
+const menu = require('./menu')
+const powerSaveBlocker = require('./power-save-blocker')
+const shell = require('./shell')
+const shortcuts = require('./shortcuts')
+const externalPlayer = require('./external-player')
+const windows = require('./windows')
+const thumbar = require('./thumbar')
 
 // Messages from the main process, to be sent once the WebTorrent process starts
-var messageQueueMainToWebTorrent = []
+const messageQueueMainToWebTorrent = []
 
 function init () {
-  var ipc = electron.ipcMain
+  const ipc = electron.ipcMain
 
   ipc.once('ipcReady', function (e) {
     app.ipcReady = true
@@ -58,14 +58,19 @@ function init () {
    */
 
   ipc.on('onPlayerOpen', function () {
-    menu.setPlayerOpen(true)
+    menu.togglePlaybackControls(true)
     powerSaveBlocker.enable()
     shortcuts.enable()
     thumbar.enable()
   })
 
+  ipc.on('onPlayerUpdate', function (e, ...args) {
+    menu.onPlayerUpdate(...args)
+    thumbar.onPlayerUpdate(...args)
+  })
+
   ipc.on('onPlayerClose', function () {
-    menu.setPlayerOpen(false)
+    menu.togglePlaybackControls(false)
     powerSaveBlocker.disable()
     shortcuts.disable()
     thumbar.disable()
@@ -101,7 +106,7 @@ function init () {
    * Windows: Main
    */
 
-  var main = windows.main
+  const main = windows.main
 
   ipc.on('setAspectRatio', (e, ...args) => main.setAspectRatio(...args))
   ipc.on('setBounds', (e, ...args) => main.setBounds(...args))
@@ -121,11 +126,16 @@ function init () {
     })
   })
 
-  ipc.on('openExternalPlayer', (e, ...args) => externalPlayer.spawn(...args))
+  ipc.on('openExternalPlayer', (e, ...args) => {
+    menu.togglePlaybackControls(false)
+    thumbar.disable()
+    externalPlayer.spawn(...args)
+  })
+
   ipc.on('quitExternalPlayer', () => externalPlayer.kill())
 
   // Capture all events
-  var oldEmit = ipc.emit
+  const oldEmit = ipc.emit
   ipc.emit = function (name, e, ...args) {
     // Relay messages between the main window and the WebTorrent hidden window
     if (name.startsWith('wt-') && !app.isQuitting) {

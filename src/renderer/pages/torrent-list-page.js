@@ -4,12 +4,13 @@ const prettyBytes = require('prettier-bytes')
 const TorrentSummary = require('../lib/torrent-summary')
 const TorrentPlayer = require('../lib/torrent-player')
 const {dispatcher} = require('../lib/dispatcher')
+const {InvalidTorrentError} = require('../lib/errors')
 
 module.exports = class TorrentList extends React.Component {
   render () {
-    var state = this.props.state
+    const state = this.props.state
 
-    var contents = []
+    const contents = []
     if (state.downloadPathStatus === 'missing') {
       contents.push(
         <div key='torrent-missing-path'>
@@ -21,7 +22,7 @@ module.exports = class TorrentList extends React.Component {
         </div>
       )
     }
-    var torrentElems = state.saved.torrents.map(
+    const torrentElems = state.saved.torrents.map(
       (torrentSummary) => this.renderTorrent(torrentSummary)
     )
     contents.push(...torrentElems)
@@ -39,28 +40,26 @@ module.exports = class TorrentList extends React.Component {
   }
 
   renderTorrent (torrentSummary) {
-    var state = this.props.state
-    var infoHash = torrentSummary.infoHash
-    var isSelected = infoHash && state.selectedInfoHash === infoHash
+    const state = this.props.state
+    const infoHash = torrentSummary.infoHash
+    const isSelected = infoHash && state.selectedInfoHash === infoHash
 
     // Background image: show some nice visuals, like a frame from the movie, if possible
-    var style = {}
+    const style = {}
     if (torrentSummary.posterFileName) {
-      var gradient = isSelected
-        ? 'linear-gradient(to bottom, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.4) 100%)'
-        : 'linear-gradient(to bottom, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0) 100%)'
-      var posterPath = TorrentSummary.getPosterPath(torrentSummary)
-      style.backgroundImage = gradient + `, url('${posterPath}')`
+      const gradient = 'linear-gradient(to bottom, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0) 100%)'
+      const posterPath = TorrentSummary.getPosterPath(torrentSummary)
+      style.backgroundImage = `${gradient}, url('${posterPath}')`
     }
 
     // Foreground: name of the torrent, basic info like size, play button,
     // cast buttons if available, and delete
-    var classes = ['torrent']
+    const classes = ['torrent']
     //  playStatus turns the play button into a loading spinner or error icon
     if (torrentSummary.playStatus) classes.push(torrentSummary.playStatus)
     if (isSelected) classes.push('selected')
     if (!infoHash) classes.push('disabled')
-    if (!torrentSummary.torrentKey) throw new Error('Missing torrentKey')
+    if (!torrentSummary.torrentKey) throw new InvalidTorrentError('Missing torrentKey')
     return (
       <div
         key={torrentSummary.torrentKey}
@@ -77,13 +76,13 @@ module.exports = class TorrentList extends React.Component {
 
   // Show name, download status, % complete
   renderTorrentMetadata (torrentSummary) {
-    var name = torrentSummary.name || 'Loading torrent...'
-    var elements = [(
+    const name = torrentSummary.name || 'Loading torrent...'
+    const elements = [(
       <div key='name' className='name ellipsis'>{name}</div>
     )]
 
     // If it's downloading/seeding then show progress info
-    var prog = torrentSummary.progress
+    const prog = torrentSummary.progress
     if (torrentSummary.error) {
       elements.push(
         <div key='progress-info' className='ellipsis'>
@@ -93,6 +92,7 @@ module.exports = class TorrentList extends React.Component {
     } else if (torrentSummary.status !== 'paused' && prog) {
       elements.push(
         <div key='progress-info' className='ellipsis'>
+          {renderProgressBar()}
           {renderPercentProgress()}
           {renderTotalProgress()}
           {renderPeers()}
@@ -105,14 +105,19 @@ module.exports = class TorrentList extends React.Component {
 
     return (<div key='metadata' className='metadata'>{elements}</div>)
 
+    function renderProgressBar () {
+      const progress = Math.floor(100 * prog.progress)
+      return (<progress value={progress} max='100'>{progress}%</progress>)
+    }
+
     function renderPercentProgress () {
-      var progress = Math.floor(100 * prog.progress)
+      const progress = Math.floor(100 * prog.progress)
       return (<span key='percent-progress'>{progress}%</span>)
     }
 
     function renderTotalProgress () {
-      var downloaded = prettyBytes(prog.downloaded)
-      var total = prettyBytes(prog.length || 0)
+      const downloaded = prettyBytes(prog.downloaded)
+      const total = prettyBytes(prog.length || 0)
       if (downloaded === total) {
         return (<span key='total-progress'>{downloaded}</span>)
       } else {
@@ -122,7 +127,7 @@ module.exports = class TorrentList extends React.Component {
 
     function renderPeers () {
       if (prog.numPeers === 0) return
-      var count = prog.numPeers === 1 ? 'peer' : 'peers'
+      const count = prog.numPeers === 1 ? 'peer' : 'peers'
       return (<span key='peers'>{prog.numPeers} {count}</span>)
     }
 
@@ -137,22 +142,22 @@ module.exports = class TorrentList extends React.Component {
     }
 
     function renderEta () {
-      var downloaded = prog.downloaded
-      var total = prog.length || 0
-      var missing = total - downloaded
-      var downloadSpeed = prog.downloadSpeed
+      const downloaded = prog.downloaded
+      const total = prog.length || 0
+      const missing = total - downloaded
+      const downloadSpeed = prog.downloadSpeed
       if (downloadSpeed === 0 || missing === 0) return
 
-      var rawEta = missing / downloadSpeed
-      var hours = Math.floor(rawEta / 3600) % 24
-      var minutes = Math.floor(rawEta / 60) % 60
-      var seconds = Math.floor(rawEta % 60)
+      const rawEta = missing / downloadSpeed
+      const hours = Math.floor(rawEta / 3600) % 24
+      const minutes = Math.floor(rawEta / 60) % 60
+      const seconds = Math.floor(rawEta % 60)
 
       // Only display hours and minutes if they are greater than 0 but always
       // display minutes if hours is being displayed
-      var hoursStr = hours ? hours + 'h' : ''
-      var minutesStr = (hours || minutes) ? minutes + 'm' : ''
-      var secondsStr = seconds + 's'
+      const hoursStr = hours ? hours + 'h' : ''
+      const minutesStr = (hours || minutes) ? minutes + 'm' : ''
+      const secondsStr = seconds + 's'
 
       return (<span>ETA: {hoursStr} {minutesStr} {secondsStr}</span>)
     }
@@ -161,9 +166,9 @@ module.exports = class TorrentList extends React.Component {
   // Download button toggles between torrenting (DL/seed) and paused
   // Play button starts streaming the torrent immediately, unpausing if needed
   renderTorrentButtons (torrentSummary) {
-    var infoHash = torrentSummary.infoHash
+    const infoHash = torrentSummary.infoHash
 
-    var playIcon, playTooltip, playClass
+    let playIcon, playTooltip, playClass
     if (torrentSummary.playStatus === 'timeout') {
       playIcon = 'warning'
       playTooltip = 'Playback timed out. No seeds? No internet? Click to try again.'
@@ -172,7 +177,7 @@ module.exports = class TorrentList extends React.Component {
       playTooltip = 'Start streaming'
     }
 
-    var downloadIcon, downloadTooltip
+    let downloadIcon, downloadTooltip
     if (torrentSummary.status === 'seeding') {
       downloadIcon = 'file_upload'
       downloadTooltip = 'Seeding. Click to stop.'
@@ -185,26 +190,25 @@ module.exports = class TorrentList extends React.Component {
     }
 
     // Only show the play/dowload buttons for torrents that contain playable media
-    var playButton, downloadButton, positionElem
+    let playButton, downloadButton, positionElem
     if (!torrentSummary.error) {
       downloadButton = (
         <i
           key='download-button'
           className={'button-round icon download ' + torrentSummary.status}
           title={downloadTooltip}
-          onClick={dispatcher('toggleTorrent', infoHash)}
-        >
+          onClick={dispatcher('toggleTorrent', infoHash)}>
           {downloadIcon}
         </i>
       )
 
       // Do we have a saved position? Show it using a radial progress bar on top
       // of the play button, unless already showing a spinner there:
-      var willShowSpinner = torrentSummary.playStatus === 'requested'
-      var defaultFile = torrentSummary.files &&
-        torrentSummary.files[torrentSummary.defaultPlayFileIndex]
-      if (defaultFile && defaultFile.currentTime && !willShowSpinner) {
-        var fraction = defaultFile.currentTime / defaultFile.duration
+      const willShowSpinner = torrentSummary.playStatus === 'requested'
+      const mostRecentFile = torrentSummary.files &&
+        torrentSummary.files[torrentSummary.mostRecentFileIndex]
+      if (mostRecentFile && mostRecentFile.currentTime && !willShowSpinner) {
+        const fraction = mostRecentFile.currentTime / mostRecentFile.duration
         positionElem = this.renderRadialProgressBar(fraction, 'radial-progress-large')
         playClass = 'resume-position'
       }
@@ -215,8 +219,7 @@ module.exports = class TorrentList extends React.Component {
             key='play-button'
             title={playTooltip}
             className={'button-round icon play ' + playClass}
-            onClick={dispatcher('playFile', infoHash)}
-          >
+            onClick={dispatcher('playFile', infoHash)}>
             {playIcon}
           </i>
         )
@@ -241,9 +244,9 @@ module.exports = class TorrentList extends React.Component {
 
   // Show files, per-file download status and play buttons, and so on
   renderTorrentDetails (torrentSummary) {
-    var filesElement
+    let filesElement
     if (torrentSummary.error || !torrentSummary.files) {
-      var message = ''
+      let message = ''
       if (torrentSummary.error === 'path-missing') {
         // Special case error: this torrent's download dir or file is missing
         message = 'Missing path: ' + TorrentSummary.getFileOrFolder(torrentSummary)
@@ -264,14 +267,9 @@ module.exports = class TorrentList extends React.Component {
       )
     } else {
       // We do know the files. List them and show download stats for each one
-      var fileRows = torrentSummary.files
+      const fileRows = torrentSummary.files
         .filter((file) => !file.path.includes('/.____padding_file/'))
         .map((file, index) => ({ file, index }))
-        .sort(function (a, b) {
-          if (a.file.name < b.file.name) return -1
-          if (b.file.name < a.file.name) return 1
-          return 0
-        })
         .map((object) => this.renderFileRow(torrentSummary, object.file, object.index))
 
       filesElement = (
@@ -296,28 +294,28 @@ module.exports = class TorrentList extends React.Component {
   renderFileRow (torrentSummary, file, index) {
     // First, find out how much of the file we've downloaded
     // Are we even torrenting it?
-    var isSelected = torrentSummary.selections && torrentSummary.selections[index]
-    var isDone = false // Are we finished torrenting it?
-    var progress = ''
+    const isSelected = torrentSummary.selections && torrentSummary.selections[index]
+    let isDone = false // Are we finished torrenting it?
+    let progress = ''
     if (torrentSummary.progress && torrentSummary.progress.files &&
         torrentSummary.progress.files[index]) {
-      var fileProg = torrentSummary.progress.files[index]
+      const fileProg = torrentSummary.progress.files[index]
       isDone = fileProg.numPiecesPresent === fileProg.numPieces
       progress = Math.round(100 * fileProg.numPiecesPresent / fileProg.numPieces) + '%'
     }
 
     // Second, for media files where we saved our position, show how far we got
-    var positionElem
+    let positionElem
     if (file.currentTime) {
       // Radial progress bar. 0% = start from 0:00, 270% = 3/4 of the way thru
       positionElem = this.renderRadialProgressBar(file.currentTime / file.duration)
     }
 
     // Finally, render the file as a table row
-    var isPlayable = TorrentPlayer.isPlayable(file)
-    var infoHash = torrentSummary.infoHash
-    var icon
-    var handleClick
+    const isPlayable = TorrentPlayer.isPlayable(file)
+    const infoHash = torrentSummary.infoHash
+    let icon
+    let handleClick
     if (isPlayable) {
       icon = 'play_arrow' /* playable? add option to play */
       handleClick = dispatcher('playFile', infoHash, index)
@@ -328,7 +326,7 @@ module.exports = class TorrentList extends React.Component {
         : (e) => e.stopPropagation() // noop if file is not ready
     }
     // TODO: add a css 'disabled' class to indicate that a file cannot be opened/streamed
-    var rowClass = ''
+    let rowClass = ''
     if (!isSelected) rowClass = 'disabled' // File deselected, not being torrented
     if (!isDone && !isPlayable) rowClass = 'disabled' // Can't open yet, can't stream
     return (
@@ -355,9 +353,9 @@ module.exports = class TorrentList extends React.Component {
   }
 
   renderRadialProgressBar (fraction, cssClass) {
-    var rotation = 360 * fraction
-    var transformFill = {transform: 'rotate(' + (rotation / 2) + 'deg)'}
-    var transformFix = {transform: 'rotate(' + rotation + 'deg)'}
+    const rotation = 360 * fraction
+    const transformFill = {transform: 'rotate(' + (rotation / 2) + 'deg)'}
+    const transformFix = {transform: 'rotate(' + rotation + 'deg)'}
 
     return (
       <div key='radial-progress' className={'radial-progress ' + cssClass}>
@@ -377,7 +375,7 @@ module.exports = class TorrentList extends React.Component {
 }
 
 function getErrorMessage (torrentSummary) {
-  var err = torrentSummary.error
+  const err = torrentSummary.error
   if (err === 'path-missing') {
     return (
       <span>

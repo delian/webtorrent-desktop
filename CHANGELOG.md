@@ -1,5 +1,40 @@
 # WebTorrent Desktop Version History
 
+## v0.14.0 - 2016-09-03
+
+### Added
+- Autoplay through all files in a torrent (#871)
+- Torrents now have a progress bar (#844)
+
+### Changed
+- Modals now use Material UI
+- Torrent list style improvements
+
+### Fixed
+- Fix App.js crash in Linux (#882)
+- Fix error on Windows caused by `setBadge` (#867)
+- Don't crash when restarting after adding a magnet link (#869)
+- Restore playback state when reopening player (#877)
+
+## v0.13.1 - 2016-08-31
+
+### Fixed
+- Fixed the Create Torrent page
+
+## v0.13.0 - 2016-08-31
+
+### Added
+- Support .m4a audio
+- Better telemetry: log error versions, report more types of errors
+
+### Changed
+- New look - Material UI. Rewrote Create Torrent and Preferences pages.
+
+### Fixed
+- Fixed telemetry [object Object] and [object HTMLMediaElement] bugs
+- Don't render player controls when playing externally, eg in VLC
+- Don't play notification sounds during media playback
+
 ## v0.12.0 - 2016-08-23
 
 ### Added

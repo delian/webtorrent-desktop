@@ -265,10 +265,6 @@ table {
   font-weight: bold;
 }
 
-.open-torrent-address-modal input {
-  width: 100%;
-}
-
 .create-torrent {
   padding: 10px 25px;
   overflow: hidden;
@@ -276,6 +272,7 @@ table {
 
 .create-torrent .torrent-attribute {
   white-space: nowrap;
+  margin: 8px 0;
 }
 
 .create-torrent .torrent-attribute>* {
@@ -283,31 +280,18 @@ table {
 }
 
 .create-torrent .torrent-attribute label {
-  width: 60px;
-  margin-right: 10px;
+  width: 100px;
   vertical-align: top;
 }
 
 .create-torrent .torrent-attribute>div {
-  width: calc(100% - 90px);
+  width: calc(100% - 100px);
 }
 
 .create-torrent .torrent-attribute div {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.create-torrent .torrent-attribute textarea {
-  width: calc(100% - 80px);
-  height: 80px;
-  color: #eee;
-  background-color: transparent;
-  line-height: 1.5;
-  font-size: 14px;
-  font-family: inherit;
-  border-radius: 2px;
-  padding: 4px 6px;
 }
 
 /*
@@ -335,6 +319,15 @@ i:not(.disabled):hover { /* Show they're clickable without pointer: cursor */
 }
 
 /*
+ * INPUTS
+ */
+input,
+textarea,
+.control {
+  font-size: 14px !important;
+}
+
+/*
  * TORRENT LIST
  */
 
@@ -355,10 +348,6 @@ i:not(.disabled):hover { /* Show they're clickable without pointer: cursor */
 
 .torrent:not(:last-child) {
   border-bottom: 1px solid rgb(20, 20, 20);
-}
-
-.torrent:hover {
-  -webkit-filter: brightness(1.1);
 }
 
 .torrent .metadata {
@@ -466,6 +455,20 @@ i:not(.disabled):hover { /* Show they're clickable without pointer: cursor */
   line-height: 1.5em;
 }
 
+progress {
+  width: 60px;
+  margin-right: 8px;
+  -webkit-appearance: none;
+}
+
+progress::-webkit-progress-bar {
+  background-color: #888;
+}
+
+progress::-webkit-progress-value {
+  background-color: #eee;
+}
+
 /*
  * TORRENT LIST: ERRORS
  */
@@ -517,6 +520,7 @@ body.drag .app::after {
 /*
  * TORRENT LIST: EXPANDED TORRENT DETAILS
  */
+
 .torrent.selected {
   height: auto;
 }
@@ -538,10 +542,6 @@ body.drag .app::after {
 
 .torrent-details tr {
   height: 28px;
-}
-
-.torrent-details tr:hover {
-  background-color: rgba(200, 200, 200, 0.3);
 }
 
 .torrent-details td {
@@ -640,11 +640,15 @@ body.drag .app::after {
   opacity: 1;
 }
 
-.player .controls .play-pause {
+.player .controls .icon.disabled {
+  opacity: 0.3;
+}
+
+.player .controls .icon.skip-previous,
+.player .controls .icon.play-pause,
+.player .controls .icon.skip-next {
   font-size: 28px;
-  margin-top: 5px;
-  margin-right: 10px;
-  margin-left: 15px;
+  margin: 5px;
 }
 
 .player .controls .volume-slider {

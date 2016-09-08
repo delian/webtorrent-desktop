@@ -3,8 +3,8 @@ const path = require('path')
 const React = require('react')
 
 const Checkbox = require('material-ui/Checkbox').default
-const Heading = require('../components/Heading')
-const PathSelector = require('../components/PathSelector')
+const Heading = require('../components/heading')
+const PathSelector = require('../components/path-selector')
 const RaisedButton = require('material-ui/RaisedButton').default
 
 const {dispatch} = require('../lib/dispatcher')
@@ -33,8 +33,7 @@ class PreferencesPage extends React.Component {
           }}
           onChange={this.handleDownloadPathChange}
           title='Download location'
-          value={this.props.state.unsaved.prefs.downloadPath}
-        />
+          value={this.props.state.unsaved.prefs.downloadPath} />
       </Preference>
     )
   }
@@ -50,8 +49,7 @@ class PreferencesPage extends React.Component {
           className='control'
           checked={!this.props.state.unsaved.prefs.openExternalPlayer}
           label={'Play torrent media files using WebTorrent'}
-          onCheck={this.handleOpenExternalPlayerChange}
-        />
+          onCheck={this.handleOpenExternalPlayerChange} />
       </Preference>
     )
   }
@@ -81,8 +79,7 @@ class PreferencesPage extends React.Component {
           displayValue={playerName}
           onChange={this.handleExternalPlayerPathChange}
           title='External player'
-          value={this.props.state.unsaved.prefs.externalPlayerPath}
-        />
+          value={this.props.state.unsaved.prefs.externalPlayerPath} />
       </Preference>
     )
   }
@@ -96,33 +93,37 @@ class PreferencesPage extends React.Component {
   }
 
   setDefaultAppButton () {
+    const isFileHandler = this.props.state.unsaved.prefs.isFileHandler
+    if (isFileHandler) {
+      return (
+        <Preference>
+          <p>WebTorrent is your default torrent app. Hooray!</p>
+        </Preference>
+      )
+    }
     return (
       <Preference>
         <p>WebTorrent is not currently the default torrent app.</p>
         <RaisedButton
           className='control'
           onClick={this.handleSetDefaultApp}
-          label='Make WebTorrent the default'
-        />
+          label='Make WebTorrent the default' />
       </Preference>
     )
   }
 
   handleSetDefaultApp () {
-    window.alert('TODO')
-    // var isFileHandler = state.unsaved.prefs.isFileHandler
-    // dispatch('updatePreferences', 'isFileHandler', !isFileHandler)
+    dispatch('updatePreferences', 'isFileHandler', true)
   }
 
   render () {
+    const style = {
+      color: colors.grey400,
+      marginLeft: 25,
+      marginRight: 25
+    }
     return (
-      <div
-        style={{
-          color: colors.grey400,
-          marginLeft: 25,
-          marginRight: 25
-        }}
-      >
+      <div style={style}>
         <PreferencesSection title='Downloads'>
           {this.downloadPathSelector()}
         </PreferencesSection>
@@ -146,13 +147,12 @@ class PreferencesSection extends React.Component {
   }
 
   render () {
+    const style = {
+      marginBottom: 25,
+      marginTop: 25
+    }
     return (
-      <div
-        style={{
-          marginBottom: 25,
-          marginTop: 25
-        }}
-      >
+      <div style={style}>
         <Heading level={2}>{this.props.title}</Heading>
         {this.props.children}
       </div>
@@ -162,15 +162,8 @@ class PreferencesSection extends React.Component {
 
 class Preference extends React.Component {
   render () {
-    return (
-      <div
-        style={{
-          marginBottom: 10
-        }}
-      >
-        {this.props.children}
-      </div>
-    )
+    const style = { marginBottom: 10 }
+    return (<div style={style}>{this.props.children}</div>)
   }
 }
 

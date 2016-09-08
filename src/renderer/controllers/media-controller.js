@@ -2,6 +2,8 @@ const electron = require('electron')
 
 const ipcRenderer = electron.ipcRenderer
 
+const Playlist = require('../lib/playlist')
+
 // Controls local play back: the <video>/<audio> tag and VLC
 // Does not control remote casting (Chromecast etc)
 module.exports = class MediaController {
@@ -18,7 +20,7 @@ module.exports = class MediaController {
   }
 
   mediaError (error) {
-    var state = this.state
+    const state = this.state
     if (state.location.url() === 'player') {
       state.playing.result = 'error'
       state.playing.location = 'error'
@@ -43,13 +45,17 @@ module.exports = class MediaController {
   }
 
   openExternalPlayer () {
-    var state = this.state
-    ipcRenderer.send('openExternalPlayer', state.saved.prefs.externalPlayerPath, state.server.localURL, state.window.title)
+    const state = this.state
+    const mediaURL = Playlist.getCurrentLocalURL(this.state)
+    ipcRenderer.send('openExternalPlayer',
+      state.saved.prefs.externalPlayerPath,
+      mediaURL,
+      state.window.title)
     state.playing.location = 'external'
   }
 
   externalPlayerNotFound () {
-    var modal = this.state.modal
+    const modal = this.state.modal
     if (modal && modal.id === 'unsupported-media-modal') {
       modal.externalPlayerNotFound = true
     }

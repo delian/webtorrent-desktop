@@ -1,30 +1,33 @@
 module.exports = {
   init,
-  setPlayerOpen,
+  togglePlaybackControls,
   setWindowFocus,
   setAllowNav,
+  onPlayerUpdate,
   onToggleAlwaysOnTop,
   onToggleFullScreen
 }
 
-var electron = require('electron')
+const electron = require('electron')
 
-var app = electron.app
+const app = electron.app
 
-var config = require('../config')
-var dialog = require('./dialog')
-var shell = require('./shell')
-var windows = require('./windows')
+const config = require('../config')
+const dialog = require('./dialog')
+const shell = require('./shell')
+const windows = require('./windows')
 
-var menu
+let menu = null
 
 function init () {
   menu = electron.Menu.buildFromTemplate(getMenuTemplate())
   electron.Menu.setApplicationMenu(menu)
 }
 
-function setPlayerOpen (flag) {
+function togglePlaybackControls (flag) {
   getMenuItem('Play/Pause').enabled = flag
+  getMenuItem('Skip Next').enabled = flag
+  getMenuItem('Skip Previous').enabled = flag
   getMenuItem('Increase Volume').enabled = flag
   getMenuItem('Decrease Volume').enabled = flag
   getMenuItem('Step Forward').enabled = flag
@@ -32,6 +35,16 @@ function setPlayerOpen (flag) {
   getMenuItem('Increase Speed').enabled = flag
   getMenuItem('Decrease Speed').enabled = flag
   getMenuItem('Add Subtitles File...').enabled = flag
+
+  if (flag === false) {
+    getMenuItem('Skip Next').enabled = false
+    getMenuItem('Skip Previous').enabled = false
+  }
+}
+
+function onPlayerUpdate (hasNext, hasPrevious) {
+  getMenuItem('Skip Next').enabled = hasNext
+  getMenuItem('Skip Previous').enabled = hasPrevious
 }
 
 function setWindowFocus (flag) {
@@ -59,8 +72,8 @@ function onToggleFullScreen (flag) {
 }
 
 function getMenuItem (label) {
-  for (var i = 0; i < menu.items.length; i++) {
-    var menuItem = menu.items[i].submenu.items.find(function (item) {
+  for (let i = 0; i < menu.items.length; i++) {
+    const menuItem = menu.items[i].submenu.items.find(function (item) {
       return item.label === label
     })
     if (menuItem) return menuItem
@@ -68,7 +81,7 @@ function getMenuItem (label) {
 }
 
 function getMenuTemplate () {
-  var template = [
+  const template = [
     {
       label: 'File',
       submenu: [
@@ -182,6 +195,21 @@ function getMenuTemplate () {
           label: 'Play/Pause',
           accelerator: 'Space',
           click: () => windows.main.dispatch('playPause'),
+          enabled: false
+        },
+        {
+          type: 'separator'
+        },
+        {
+          label: 'Skip Next',
+          accelerator: 'N',
+          click: () => windows.main.dispatch('nextTrack'),
+          enabled: false
+        },
+        {
+          label: 'Skip Previous',
+          accelerator: 'P',
+          click: () => windows.main.dispatch('previousTrack'),
           enabled: false
         },
         {

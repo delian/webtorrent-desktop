@@ -14,7 +14,7 @@ const url = require('url')
 
 const config = require('../../config')
 
-var telemetry
+let telemetry
 
 function init (state) {
   telemetry = state.saved.telemetry
@@ -23,7 +23,7 @@ function init (state) {
     reset()
   }
 
-  var now = new Date()
+  const now = new Date()
   telemetry.version = config.APP_VERSION
   telemetry.timestamp = now.toISOString()
   telemetry.localTime = now.toTimeString()
@@ -56,17 +56,17 @@ function reset () {
 
 function postToServer () {
   // Serialize the telemetry summary
-  var payload = new Buffer(JSON.stringify(telemetry), 'utf8')
+  const payload = new Buffer(JSON.stringify(telemetry), 'utf8')
 
   // POST to our server
-  var options = url.parse(config.TELEMETRY_URL)
+  const options = url.parse(config.TELEMETRY_URL)
   options.method = 'POST'
   options.headers = {
     'Content-Type': 'application/json',
     'Content-Length': payload.length
   }
 
-  var req = https.request(options, function (res) {
+  const req = https.request(options, function (res) {
     if (res.statusCode === 200) {
       console.log('Successfully posted telemetry summary')
       reset()
@@ -85,7 +85,7 @@ function postToServer () {
 // collects screen resolution, etc
 function createSummary () {
   // Make a 256-bit random unique ID
-  var userID = crypto.randomBytes(32).toString('hex')
+  const userID = crypto.randomBytes(32).toString('hex')
   return { userID }
 }
 
@@ -111,10 +111,10 @@ function getSystemInfo () {
 
 // Get the number of torrents, rounded to the nearest power of two
 function getApproxNumTorrents (state) {
-  var exactNum = state.saved.torrents.length
+  const exactNum = state.saved.torrents.length
   if (exactNum === 0) return 0
   // Otherwise, return 1, 2, 4, 8, etc by rounding in log space
-  var log2 = Math.log(exactNum) / Math.log(2)
+  const log2 = Math.log(exactNum) / Math.log(2)
   return 1 << Math.round(log2)
 }
 
@@ -124,12 +124,10 @@ function logUncaughtError (procName, e) {
   // Hopefully uncaught errors immediately on startup are fixed in dev
   if (!telemetry) return
 
-  var message
-  var stack = ''
-  if (e.message) {
-    // err is either an Error or a plain object {message, stack}
-    message = e.message
-    stack = e.stack
+  let message
+  let stack = ''
+  if (e == null) {
+    message = 'Unexpected undefined error'
   } else if (e.error) {
     // Uncaught Javascript errors (window.onerror), err is an ErrorEvent
     if (!e.error.message) {
@@ -138,6 +136,10 @@ function logUncaughtError (procName, e) {
       message = e.error.message
       stack = e.error.stack
     }
+  } else if (e.message) {
+    // err is either an Error or a plain object {message, stack}
+    message = e.message
+    stack = e.stack
   } else {
     // Resource errors (captured element.onerror), err is an Event
     if (!e.target) {
@@ -149,11 +151,14 @@ function logUncaughtError (procName, e) {
     }
   }
 
+  if (typeof stack !== 'string') stack = 'Unexpected stack: ' + stack
+  if (typeof message !== 'string') message = 'Unexpected message: ' + message
+
   // Remove the first part of each file path in the stack trace.
   // - Privacy: remove personal info like C:\Users\<full name>
   // - Aggregation: this lets us find which stacktraces occur often
-  if (stack && typeof stack === 'string') stack = stack.replace(/\(.*app.asar/g, '(...')
-  else if (stack) stack = 'Unexpected stack: ' + stack
+  stack = stack.replace(/\(.*app.asar/g, '(...')
+  stack = stack.replace(/at .*app.asar/g, 'at ...')
 
   // We need to POST the telemetry object, make sure it stays < 100kb
   if (telemetry.uncaughtErrors.length > 20) return
@@ -161,14 +166,14 @@ function logUncaughtError (procName, e) {
   if (stack.length > 1000) stack = stack.substring(0, 1000)
 
   // Log the app version *at the time of the error*
-  var version = config.APP_VERSION
+  const version = config.APP_VERSION
 
   telemetry.uncaughtErrors.push({process: procName, message, stack, version})
 }
 
 // Turns a DOM element into a string, eg "DIV.my-class.visible"
 function getElemString (elem) {
-  var ret = elem.tagName
+  let ret = elem.tagName
   try {
     ret += '.' + Array.from(elem.classList).join('.')
   } catch (e) {}
@@ -182,7 +187,7 @@ function logPlayAttempt (result) {
     return console.error('Unknown play attempt result', result)
   }
 
-  var attempts = telemetry.playAttempts
+  const attempts = telemetry.playAttempts
   attempts.total = (attempts.total || 0) + 1
   attempts[result] = (attempts[result] || 0) + 1
 }

@@ -18,7 +18,7 @@ const TorrentPlayer = require('./lib/torrent-player')
 // Required by Material UI -- adds `onTouchTap` event
 require('react-tap-event-plugin')()
 
-const App = require('./pages/App')
+const App = require('./pages/app')
 
 const MediaController = require('./controllers/media-controller')
 const UpdateController = require('./controllers/update-controller')
@@ -28,27 +28,27 @@ const SubtitlesController = require('./controllers/subtitles-controller')
 const TorrentListController = require('./controllers/torrent-list-controller')
 const TorrentController = require('./controllers/torrent-controller')
 
+// Electron apps have two processes: a main process (node) runs first and starts
+// a renderer process (essentially a Chrome window). We're in the renderer process,
+// and this IPC channel receives from and sends messages to the main process
+const ipcRenderer = electron.ipcRenderer
+
 // Yo-yo pattern: state object lives here and percolates down thru all the views.
 // Events come back up from the views via dispatch(...)
 require('./lib/dispatcher').setDispatch(dispatch)
 
 // From dispatch(...), events are sent to one of the controllers
-var controllers = null
+let controllers = null
 
 // This dependency is the slowest-loading, so we lazy load it
-var Cast = null
-
-// Electron apps have two processes: a main process (node) runs first and starts
-// a renderer process (essentially a Chrome window). We're in the renderer process,
-// and this IPC channel receives from and sends messages to the main process
-var ipcRenderer = electron.ipcRenderer
+let Cast = null
 
 // All state lives in state.js. `state.saved` is read from and written to a file.
 // All other state is ephemeral. First we load state.saved then initialize the app.
-var state
+let state
 
 // Root React component
-var app
+let app
 
 State.load(onState)
 
@@ -58,6 +58,13 @@ State.load(onState)
 function onState (err, _state) {
   if (err) return onError(err)
   state = window.state = _state // Make available for easier debugging
+
+  telemetry.init(state)
+
+  // Log uncaught JS errors
+  window.addEventListener('error',
+    (e) => telemetry.logUncaughtError('window', e),
+    true /* capture */)
 
   // Create controllers
   controllers = {
@@ -114,11 +121,6 @@ function onState (err, _state) {
   // ...window visibility state.
   document.addEventListener('webkitvisibilitychange', onVisibilityChange)
 
-  // Log uncaught JS errors
-  window.addEventListener('error',
-    (e) => telemetry.logUncaughtError('window', e),
-    true /* capture */)
-
   // Done! Ideally we want to get here < 500ms after the user clicks the app
   sound.play('STARTUP')
   console.timeEnd('init')
@@ -128,7 +130,6 @@ function onState (err, _state) {
 function delayedInit () {
   lazyLoadCast()
   sound.preload()
-  telemetry.init(state)
 }
 
 // Lazily loads Chromecast and Airplay support
@@ -178,16 +179,24 @@ const dispatchHandlers = {
   'showCreateTorrent': (paths) => controllers.torrentList.showCreateTorrent(paths),
   'createTorrent': (options) => controllers.torrentList.createTorrent(options),
   'toggleTorrent': (infoHash) => controllers.torrentList.toggleTorrent(infoHash),
-  'toggleTorrentFile': (infoHash, index) => controllers.torrentList.toggleTorrentFile(infoHash, index),
-  'confirmDeleteTorrent': (infoHash, deleteData) => controllers.torrentList.confirmDeleteTorrent(infoHash, deleteData),
-  'deleteTorrent': (infoHash, deleteData) => controllers.torrentList.deleteTorrent(infoHash, deleteData),
-  'toggleSelectTorrent': (infoHash) => controllers.torrentList.toggleSelectTorrent(infoHash),
-  'openTorrentContextMenu': (infoHash) => controllers.torrentList.openTorrentContextMenu(infoHash),
-  'startTorrentingSummary': (torrentKey) => controllers.torrentList.startTorrentingSummary(torrentKey),
+  'toggleTorrentFile': (infoHash, index) =>
+    controllers.torrentList.toggleTorrentFile(infoHash, index),
+  'confirmDeleteTorrent': (infoHash, deleteData) =>
+    controllers.torrentList.confirmDeleteTorrent(infoHash, deleteData),
+  'deleteTorrent': (infoHash, deleteData) =>
+    controllers.torrentList.deleteTorrent(infoHash, deleteData),
+  'toggleSelectTorrent': (infoHash) =>
+    controllers.torrentList.toggleSelectTorrent(infoHash),
+  'openTorrentContextMenu': (infoHash) =>
+    controllers.torrentList.openTorrentContextMenu(infoHash),
+  'startTorrentingSummary': (torrentKey) =>
+    controllers.torrentList.startTorrentingSummary(torrentKey),
 
   // Playback
   'playFile': (infoHash, index) => controllers.playback.playFile(infoHash, index),
   'playPause': () => controllers.playback.playPause(),
+  'nextTrack': () => controllers.playback.nextTrack(),
+  'previousTrack': () => controllers.playback.previousTrack(),
   'skip': (time) => controllers.playback.skip(time),
   'skipTo': (time) => controllers.playback.skipTo(time),
   'changePlaybackRate': (dir) => controllers.playback.changePlaybackRate(dir),
@@ -255,7 +264,7 @@ function dispatch (action, ...args) {
     console.log('dispatch: %s %o', action, args)
   }
 
-  var handler = dispatchHandlers[action]
+  const handler = dispatchHandlers[action]
   if (handler) handler(...args)
   else console.error('Missing dispatch handler: ' + action)
 
@@ -275,7 +284,7 @@ function setupIpc () {
 
   ipcRenderer.on('fullscreenChanged', onFullscreenChanged)
 
-  var tc = controllers.torrent
+  const tc = controllers.torrent
   ipcRenderer.on('wt-infohash', (e, ...args) => tc.torrentInfoHash(...args))
   ipcRenderer.on('wt-metadata', (e, ...args) => tc.torrentMetadata(...args))
   ipcRenderer.on('wt-done', (e, ...args) => tc.torrentDone(...args))
@@ -302,7 +311,7 @@ function backToList () {
   state.modal = null
   state.location.backToFirst(function () {
     // If we were already on the torrent list, scroll to the top
-    var contentTag = document.querySelector('.content')
+    const contentTag = document.querySelector('.content')
     if (contentTag) contentTag.scrollTop = 0
   })
 }
@@ -349,18 +358,18 @@ function setDimensions (dimensions) {
   state.window.wasMaximized = electron.remote.getCurrentWindow().isMaximized
 
   // Limit window size to screen size
-  var screenWidth = window.screen.width
-  var screenHeight = window.screen.height
-  var aspectRatio = dimensions.width / dimensions.height
-  var scaleFactor = Math.min(
+  const screenWidth = window.screen.width
+  const screenHeight = window.screen.height
+  const aspectRatio = dimensions.width / dimensions.height
+  const scaleFactor = Math.min(
     Math.min(screenWidth / dimensions.width, 1),
     Math.min(screenHeight / dimensions.height, 1)
   )
-  var width = Math.max(
+  const width = Math.max(
     Math.floor(dimensions.width * scaleFactor),
     config.WINDOW_MIN_WIDTH
   )
-  var height = Math.max(
+  const height = Math.max(
     Math.floor(dimensions.height * scaleFactor),
     config.WINDOW_MIN_HEIGHT
   )
@@ -375,9 +384,9 @@ function setDimensions (dimensions) {
 function onOpen (files) {
   if (!Array.isArray(files)) files = [ files ]
 
-  var url = state.location.url()
-  var allTorrents = files.every(TorrentPlayer.isTorrent)
-  var allSubtitles = files.every(controllers.subtitles.isSubtitle)
+  const url = state.location.url()
+  const allTorrents = files.every(TorrentPlayer.isTorrent)
+  const allSubtitles = files.every(controllers.subtitles.isSubtitle)
 
   if (allTorrents) {
     // Drop torrents onto the app: go to home screen, add torrents, no matter what
@@ -413,7 +422,7 @@ function onError (err) {
 function onPaste (e) {
   if (e.target.tagName.toLowerCase() === 'input') return
 
-  var torrentIds = electron.clipboard.readText().split('\n')
+  const torrentIds = electron.clipboard.readText().split('\n')
   torrentIds.forEach(function (torrentId) {
     torrentId = torrentId.trim()
     if (torrentId.length === 0) return
