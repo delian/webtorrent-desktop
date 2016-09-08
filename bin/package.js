@@ -78,6 +78,7 @@ var all = {
   // A glob expression, that unpacks the files with matching names to the
   // "app.asar.unpacked" directory.
   'asar-unpack': 'WebTorrent*',
+  'asar-unpack-dir': 'static/vlc-2.2.4',
 
   // The build version of the application. Maps to the FileVersion metadata property on
   // Windows, and CFBundleVersion on Mac. Note: Windows requires the build version to
